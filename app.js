@@ -65,7 +65,7 @@ function applyTheme(){
 }
 
 async function shuffle(){
-  canGuess=false;busy=true;msg.textContent="Shuffling…";
+  canGuess=false;busy=true;msg.textContent="Shufflingâ€¦";
   for(let i=0;i<10+round;i++){
     let a=rnd(shellCount),b=rnd(shellCount);if(a==b)continue;
     [slots[a],slots[b]]=[slots[b],slots[a]];
