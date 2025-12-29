@@ -1,14 +1,17 @@
 /* =========================
-   Infinite Shells — app.js (FULL MERGED)
-   Ladder progression + pacing:
-   - Start at 3 shells
-   - After 2 wins at 3 → 4 shells
-   - After 2 wins at 4 → 5 shells
-   - After 2 wins at 5 → 6 shells
-   - After 1 win  at 6 → 7 shells
-   - After 1 win  at 7 → theme advances + reset to 3 shells
-   - Each time you clear 7 shells, the next cycle (back at 3) is slightly harder (difficultyTier++)
-   - Pearl positioning uses cached slot positions (fixes “drift”)
+   Infinite Shells — app.js (FULL)
+   - Starts immediately on play screen (3 shells visible)
+   - Tap anywhere ONLY when BETWEEN rounds:
+       - not busy
+       - not canGuess
+   - During “Pick a shell.”, tap-anywhere does NOTHING (shell taps only)
+   - Ladder progression:
+       3 shells: 2 wins -> 4
+       4 shells: 2 wins -> 5
+       5 shells: 2 wins -> 6
+       6 shells: 1 win  -> 7
+       7 shells: 1 win  -> reset to 3 + theme advances
+   - Each time you clear 7 shells, next cycle is slightly harder (difficultyTier++)
 ========================= */
 
 /* ---------- ASSETS ---------- */
@@ -27,7 +30,7 @@ const ASSETS = {
 
 /* ---------- THEMES (flat solids) ---------- */
 const THEMES = [
-  { key:"ivory",  bg:"#0F2F1F" }, // confirmed: ivory shell on dark green bg
+  { key:"ivory",  bg:"#0F2F1F" },
   { key:"coral",  bg:"#0E3A44" },
   { key:"green",  bg:"#2B1240" },
   { key:"gray",   bg:"#1C2736" },
@@ -35,14 +38,6 @@ const THEMES = [
   { key:"blue",   bg:"#3A260F" },
   { key:"red",    bg:"#0A1224" }
 ];
-
-/* ---------- Lifelines scaffold (disabled for now) ---------- */
-const lifelines = {
-  reveal: { enabled:false, uses:0, maxUses:1 },
-  slowMo: { enabled:false, uses:0, maxUses:1 }
-};
-const canUseLifeline = (n) => lifelines[n]?.enabled && lifelines[n].uses < lifelines[n].maxUses;
-const useLifeline = (n) => canUseLifeline(n) ? (++lifelines[n].uses, true) : false;
 
 /* ---------- DOM ---------- */
 const board      = document.getElementById("board");
@@ -52,7 +47,6 @@ const msg        = document.getElementById("msg");
 const scoreLine  = document.getElementById("scoreLine");
 const overlay    = document.getElementById("overlay");
 const recordText = document.getElementById("recordText");
-const btnStart   = document.getElementById("btnStart");
 const btnReset   = document.getElementById("btnReset");
 
 /* ---------- Helpers ---------- */
@@ -65,30 +59,27 @@ let bestScore = Number(localStorage.getItem("infiniteShells_bestScore") || "0");
 let recordShownThisRun = false;
 
 let themeIndex = 0;
-
-// “Run” = one attempt until you lose.
 let totalWinsThisRun = 0;
 
-// Ladder tracking (your requested rules)
-let stageShells = 3;       // current stage shell count (3..7)
-let stageWins = 0;         // wins achieved within the current stage
-let difficultyTier = 0;    // increments each time 7-shell is cleared (next cycle slightly harder)
+// Ladder tracking
+let stageShells = 3; // 3..7
+let stageWins = 0;
+let difficultyTier = 0;
 
 let shellCount = 3;
 const MIN_SHELLS = 3;
 const MAX_SHELLS = 7;
 
-let shells = [];           // shell DOM nodes (identity-based)
-let slots = [];            // slots[shellId] = slotIndex (where that shell currently sits)
-let slotPerc = [];         // cached percentage positions for each slot
+let shells = [];
+let slots = [];
+let slotPerc = [];
 
-let pearlUnderShellId = 0; // pearl hidden under a shell identity
+let pearlUnderShellId = 0;
 let canGuess = false;
 let busy = false;
 
 /* ---------- Slots / Layout ---------- */
 function computeSlotPercents(n){
-  // Tighter margins as shells increase so 7 fits.
   const leftMargin =
     (n >= 7) ? 8 :
     (n === 6) ? 12 :
@@ -99,30 +90,24 @@ function computeSlotPercents(n){
   const step = span / (n - 1);
   return Array.from({ length:n }, (_, i) => leftMargin + i * step);
 }
-
-function recomputeSlots(){
-  slotPerc = computeSlotPercents(shellCount);
-}
+function recomputeSlots(){ slotPerc = computeSlotPercents(shellCount); }
 
 /* ---------- Ladder rules ---------- */
-function winsNeededForStage(shells){
-  if (shells === 3) return 2;
-  if (shells === 4) return 2;
-  if (shells === 5) return 2;
-  if (shells === 6) return 1;
-  if (shells === 7) return 1;
+function winsNeededForStage(s){
+  if (s === 3) return 2;
+  if (s === 4) return 2;
+  if (s === 5) return 2;
+  if (s === 6) return 1;
+  if (s === 7) return 1;
   return 2;
 }
-
 function advanceStageIfReady(){
   const need = winsNeededForStage(stageShells);
   if (stageWins < need) return;
 
-  // reset wins for the next stage
   stageWins = 0;
 
   if (stageShells === 7){
-    // cleared 7 shells → theme + reset to 3, slightly harder next cycle
     themeIndex = (themeIndex + 1) % THEMES.length;
     difficultyTier++;
     stageShells = 3;
@@ -131,19 +116,17 @@ function advanceStageIfReady(){
   }
 }
 
-/* ---------- Difficulty (slow early, ramps later; tier bumps each cycle) ---------- */
+/* ---------- Difficulty ---------- */
 function difficultyFromProgress(totalWins, shellsNow, tier){
-  // totalWins ramps “later levels”; tier makes each 3→7 cycle slightly harder.
-  const t = Math.min(1, totalWins / 40);           // slower ramp
-  const ease = t * t * (3 - 2 * t);                // smoothstep
-  const late = Math.max(0, (totalWins - 18) / 22);  // extra ramp later
+  const t = Math.min(1, totalWins / 40);
+  const ease = t * t * (3 - 2 * t);
+  const late = Math.max(0, (totalWins - 18) / 22);
 
-  const baseSwaps = 5 + (shellsNow - 3) * 2;        // 3 shells ~5, 7 shells ~13
-  const tierBump = Math.min(10, tier * 1.2);        // gentle, capped
+  const baseSwaps = 5 + (shellsNow - 3) * 2;
+  const tierBump = Math.min(10, tier * 1.2);
 
   const swaps = Math.round(baseSwaps + ease * 8 + late * 10 + tierBump);
 
-  // duration per swap (ms): early readable, later fast; tier nudges faster
   let duration = Math.round(
     320 - ease * 150 - late * 90 - (shellsNow - 3) * 10 - tier * 6
   );
@@ -166,6 +149,12 @@ function applyTheme(){
   pearl.style.backgroundImage = `url(${ASSETS.ball})`;
 }
 
+/* ---------- UI helpers ---------- */
+function setMessage(t){ msg.textContent = t; }
+function refreshHUD(){ scoreLine.textContent = `Score: ${score}`; }
+function showPearl(){ pearl.style.opacity = "1"; }
+function hidePearl(){ pearl.style.opacity = "0"; }
+
 /* ---------- Build / Place ---------- */
 function buildShells(n){
   shellLayer.innerHTML = "";
@@ -175,7 +164,6 @@ function buildShells(n){
   shellCount = n;
   recomputeSlots();
 
-  // Create shell identities 0..n-1; each starts in its own slot index
   for (let shellId = 0; shellId < shellCount; shellId++){
     const d = document.createElement("div");
     d.className = "shell";
@@ -183,14 +171,18 @@ function buildShells(n){
     slots[shellId] = shellId;
     d.style.left = `${slotPerc[slots[shellId]]}%`;
 
-    d.addEventListener("click", () => handleGuess(shellId));
+    // Stop shell clicks from triggering “tap anywhere”
+    d.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handleGuess(shellId);
+    });
+
     shells.push(d);
     shellLayer.appendChild(d);
   }
 
   applyTheme();
 
-  // Clamp pearl if needed
   if (pearlUnderShellId >= shellCount) pearlUnderShellId = 0;
   placePearlUnderShell(pearlUnderShellId);
 }
@@ -200,15 +192,8 @@ function placePearlUnderShell(shellId){
   pearl.style.left = `${slotPerc[slotIndex]}%`;
 }
 
-function showPearl(){ pearl.style.opacity = "1"; }
-function hidePearl(){ pearl.style.opacity = "0"; }
-
-function setMessage(t){ msg.textContent = t; }
-function refreshHUD(){ scoreLine.textContent = `Score: ${score}`; }
-
 /* ---------- Pearl selection ---------- */
 function pickPearlForRound(){
-  // Choose a shell identity to hide pearl under.
   let next = rndInt(shellCount);
   if (shellCount > 1 && next === pearlUnderShellId){
     next = (next + 1 + rndInt(shellCount - 1)) % shellCount;
@@ -219,16 +204,13 @@ function pickPearlForRound(){
 
 /* ---------- Shuffle animation ---------- */
 async function animateSwap(a, b, duration){
-  // Lift
   shells[a].classList.add("lift");
   shells[b].classList.add("lift");
 
-  // Swap their slot assignments
   const tmp = slots[a];
   slots[a] = slots[b];
   slots[b] = tmp;
 
-  // Apply movement
   shells[a].style.transitionDuration = `${duration}ms`;
   shells[b].style.transitionDuration = `${duration}ms`;
 
@@ -237,7 +219,6 @@ async function animateSwap(a, b, duration){
 
   await sleep(Math.max(60, duration * 0.55));
 
-  // Unlift
   shells[a].classList.remove("lift");
   shells[b].classList.remove("lift");
 
@@ -258,11 +239,8 @@ async function shuffle(){
 
     await animateSwap(a, b, d.duration);
 
-    if (Math.random() < d.pauseChance) {
-      await sleep(rndInt(d.pauseExtraMax));
-    } else {
-      await sleep(rndInt(45));
-    }
+    if (Math.random() < d.pauseChance) await sleep(rndInt(d.pauseExtraMax));
+    else await sleep(rndInt(45));
   }
 
   busy = false;
@@ -274,7 +252,6 @@ async function shuffle(){
 async function startRound(){
   if (busy) return;
 
-  // Use ladder shells
   const desiredShells = stageShells;
 
   if (desiredShells !== shellCount) {
@@ -287,7 +264,6 @@ async function startRound(){
     });
   }
 
-  // Pick pearl, show briefly, then shuffle
   pickPearlForRound();
 
   setMessage("Watch the ball…");
@@ -299,6 +275,17 @@ async function startRound(){
   await shuffle();
 }
 
+/* ---------- Tap-anywhere gating ---------- */
+function requestStartFromTap(){
+  // Only start when BETWEEN rounds
+  if (busy) return;
+  if (canGuess) return;
+  startRound();
+}
+
+// Tap anywhere on the screen to start / next round
+document.addEventListener("pointerdown", requestStartFromTap, { passive:true });
+
 /* ---------- Guess handling ---------- */
 async function handleGuess(shellId){
   if (!canGuess || busy) return;
@@ -306,7 +293,6 @@ async function handleGuess(shellId){
   canGuess = false;
   busy = true;
 
-  // Reveal pearl under correct shell (cached slotPerc + slots map)
   placePearlUnderShell(pearlUnderShellId);
   showPearl();
 
@@ -316,7 +302,6 @@ async function handleGuess(shellId){
     score += 10;
     refreshHUD();
 
-    // NEW RECORD (one-time per run)
     if (score > bestScore && !recordShownThisRun){
       bestScore = score;
       localStorage.setItem("infiniteShells_bestScore", String(bestScore));
@@ -325,7 +310,6 @@ async function handleGuess(shellId){
       setTimeout(() => recordText.classList.remove("show"), 1500);
     }
 
-    // Ladder progress
     totalWinsThisRun++;
     stageWins++;
 
@@ -339,9 +323,8 @@ async function handleGuess(shellId){
     hidePearl();
 
     busy = false;
-    setMessage("Tap Start / Next Round");
+    setMessage("Tap anywhere for Next Round");
   } else {
-    // Loss polish + reset
     setMessage("Wrong — Game Over");
     overlay.classList.add("flash");
     board.classList.add("shake");
@@ -365,7 +348,6 @@ function resetGame(){
   score = 0;
   totalWinsThisRun = 0;
 
-  // Full reset to beginning
   stageShells = 3;
   stageWins = 0;
   difficultyTier = 0;
@@ -375,19 +357,20 @@ function resetGame(){
 
   refreshHUD();
   hidePearl();
-  setMessage("Ready. Hit Start.");
 
-  // Fresh build at 3 shells
+  // Straight to play screen with 3 shells visible
+  setMessage("Tap anywhere to Start.");
   buildShells(MIN_SHELLS);
 
-  // Random starting pearl (not always left)
   pearlUnderShellId = rndInt(shellCount);
   placePearlUnderShell(pearlUnderShellId);
 }
 
-/* ---------- Wire buttons ---------- */
-btnStart.addEventListener("click", startRound);
-btnReset.addEventListener("click", resetGame);
+/* ---------- Reset button ---------- */
+btnReset?.addEventListener("click", (e) => {
+  e.stopPropagation(); // don’t also start a round
+  resetGame();
+});
 
 /* ---------- Init ---------- */
 resetGame();
