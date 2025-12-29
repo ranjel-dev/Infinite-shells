@@ -5,8 +5,6 @@
   --pearlSize: 64px;
 }
 
-*{ box-sizing:border-box; }
-
 body{
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   margin:0; padding:24px;
@@ -24,12 +22,17 @@ body{
 }
 #controls button:hover{ filter:brightness(1.1); }
 
+/* Hide Start button (tap anywhere starts/nexts) */
+#btnStart { display:none; }
+
 #board{
   width:var(--boardW); height:var(--boardH);
   margin:0 auto;
   border-radius:22px; border:1px solid #2c2c3a;
-  position:relative; overflow:hidden;
-  background:#0F2F1F;
+  position:relative; overflow:hidden; user-select:none;
+  background:#151522;
+  transform: translateZ(0);
+  cursor:pointer;
 }
 
 #board.shake{ animation: shake 320ms ease; }
@@ -44,9 +47,10 @@ body{
 
 #overlay{
   position:absolute; inset:0;
-  background:rgba(255,40,60,.22);
+  background:rgba(255, 40, 60, 0.22);
   opacity:0; pointer-events:none;
   transition:opacity 160ms ease;
+  z-index:50;
 }
 #overlay.flash{ opacity:1; }
 
@@ -55,11 +59,13 @@ body{
   transform:translateX(-50%);
   font-weight:800; letter-spacing:1px;
   color:#ffd54a;
-  opacity:0; transition:opacity .25s ease;
+  opacity:0; pointer-events:none;
+  transition:opacity 250ms ease;
+  z-index:60;
 }
 #recordText.show{ opacity:1; }
 
-#shellLayer{ position:absolute; inset:0; }
+#shellLayer{ position:absolute; inset:0; z-index:10; }
 
 .shell{
   position:absolute;
@@ -67,12 +73,13 @@ body{
   bottom:92px;
   left:50%;
   transform:translateX(-50%);
+  border-radius:18px;
   cursor:pointer;
   background-size:contain;
   background-repeat:no-repeat;
   background-position:center;
   transition:left 220ms ease, transform 220ms ease;
-  filter:drop-shadow(0 10px 12px rgba(0,0,0,.35));
+  filter: drop-shadow(0 10px 12px rgba(0,0,0,0.35));
 }
 
 .shell.lift{
@@ -90,5 +97,6 @@ body{
   background-size:contain;
   background-repeat:no-repeat;
   background-position:center;
-  filter:drop-shadow(0 8px 10px rgba(0,0,0,.35));
+  z-index:20;
+  filter: drop-shadow(0 8px 10px rgba(0,0,0,0.35));
 }
