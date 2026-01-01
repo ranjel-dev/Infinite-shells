@@ -2,29 +2,55 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"
+  />
   <title>Infinite Shells</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 
   <div id="hud">
     <div id="scoreLine">Score: 0</div>
-    <div id="msg">Ready. Hit Start.</div>
+    <div id="msg"></div>
     <div id="controls">
-      <button id="btnStart">Start / Next Round</button>
+      <button id="btnStart">Start</button>
       <button id="btnReset">Reset</button>
     </div>
   </div>
 
   <div id="board">
+
+    <!-- LOADING SCREEN (FIRST) -->
+    <div id="loadingScreen">
+      <img
+        id="loadingLogo"
+        src="logo.png"
+        alt="Company Logo"
+        draggable="false"
+      />
+    </div>
+
+    <!-- TITLE SCREEN (SECOND) -->
+    <div id="titleScreen">
+      <img
+        id="titleImage"
+        src="title.jpg"
+        alt="Infinite Shells Title"
+        draggable="false"
+      />
+      <div class="pressStart">PRESS ANYWHERE TO START</div>
+    </div>
+
+    <!-- GAME -->
     <div id="overlay"></div>
     <div id="recordText">NEW RECORD!</div>
     <div id="shellLayer"></div>
     <div id="pearl"></div>
+
   </div>
 
-  <script defer src="./app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
-
