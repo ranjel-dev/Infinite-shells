@@ -1,40 +1,70 @@
 :root{
-  --boardW: 760px;
-  --boardH: 360px;
-  --shellSize: 120px;
-  --pearlSize: 64px;
+  --shellSize: clamp(78px, 11vw, 120px);
+  --pearlSize: clamp(44px, 6vw, 64px);
 }
 
 body{
   margin:0;
-  padding:24px;
+  padding:14px;
   background:#0b0b10;
   color:#e8e8ef;
-  font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-}
+  font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
 
 #hud{
-  max-width:var(--boardW);
-  margin:0 auto 14px;
+  max-width: 920px;
+  margin:0 auto 12px;
   display:grid;
-  gap:10px;
+  gap:8px;
 }
 
-#btnStart{ display:none; }
+#scoreLine{ font-size:18px; }
+#msg{ opacity:.92; min-height: 1.2em; }
+
+#controls button{
+  margin-right:10px;
+  padding:10px 14px;
+  border-radius:10px;
+  border:1px solid #2c2c3a;
+  background:#151522;
+  color:#e8e8ef;
+  cursor:pointer;
+}
+#controls button:hover{ filter:brightness(1.1); }
+
+/* Start button is not used (tap-anywhere), keep hidden */ #btnStart{ display:none; }
 
 #board{
-  width:var(--boardW);
-  height:var(--boardH);
+  width: min(920px, calc(100vw - 28px));
+  aspect-ratio: 16 / 9;
   margin:0 auto;
   border-radius:22px;
   border:1px solid #2c2c3a;
   position:relative;
   overflow:hidden;
   background:#151522;
+  user-select:none;
+  cursor:pointer;
+}
+
+/* Portrait warning overlay */
+#rotateOverlay{
+  position:absolute;
+  inset:0;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  background:#0b0b10;
+  color:#e8e8ef;
+  font-size:18px;
+  letter-spacing:0.08em;
+  z-index:2000;
+}
+@media (orientation:portrait){
+  #rotateOverlay{ display:flex; }
 }
 
 /* =========================
-   LOADING SCREEN
+   LOADING SCREEN (WHITE)
 ========================= */
 #loadingScreen{
   position:absolute;
@@ -47,15 +77,15 @@ body{
 }
 
 #loadingLogo{
-  max-width:80%;
-  max-height:60%;
+  max-width:82%;
+  max-height:64%;
   object-fit:contain;
   user-select:none;
   pointer-events:none;
 }
 
 /* =========================
-   TITLE SCREEN
+   TITLE SCREEN (IMAGE)
 ========================= */
 #titleScreen{
   position:absolute;
@@ -72,9 +102,10 @@ body{
   height:100%;
   object-fit:cover;
   pointer-events:none;
+  user-select:none;
 }
 
-.pressStart{
+/* CTA fade (opacity only; trust-first) */ .pressStart{
   position:absolute;
   bottom:18%;
   left:50%;
@@ -103,18 +134,51 @@ body{
   position:absolute;
   width:var(--shellSize);
   height:var(--shellSize);
-  bottom:92px;
+  bottom: 26%;
+  left:50%;
   transform:translateX(-50%);
+  border-radius:18px;
   background-size:contain;
   background-repeat:no-repeat;
+  background-position:center;
   cursor:pointer;
-}
+  transition:left 220ms ease, transform 220ms ease;
+  filter: drop-shadow(0 10px 12px rgba(0,0,0,0.35)); }
+
+.shell.lift{
+  transform:translateX(-50%) translateY(-22px) scale(1.03); }
 
 #pearl{
   position:absolute;
   width:var(--pearlSize);
   height:var(--pearlSize);
-  bottom:112px;
+  bottom: calc(26% + 18px);
+  left:50%;
   transform:translateX(-50%);
   opacity:0;
+  transition:opacity 140ms ease;
+  background-size:contain;
+  background-repeat:no-repeat;
+  background-position:center;
+  z-index:20;
+  filter: drop-shadow(0 8px 10px rgba(0,0,0,0.35)); }
+
+#overlay{
+  position:absolute; inset:0;
+  background:rgba(255, 40, 60, 0.22);
+  opacity:0; pointer-events:none;
+  transition:opacity 160ms ease;
+  z-index:50;
 }
+#overlay.flash{ opacity:1; }
+
+#recordText{
+  position:absolute; top:18px; left:50%;
+  transform:translateX(-50%);
+  font-weight:800; letter-spacing:1px;
+  color:#ffd54a;
+  opacity:0; pointer-events:none;
+  transition:opacity 250ms ease;
+  z-index:60;
+}
+#recordText.show{ opacity:1; }
