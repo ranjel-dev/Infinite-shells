@@ -8,7 +8,8 @@ body{
   padding:14px;
   background:#0b0b10;
   color:#e8e8ef;
-  font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+  font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
 
 #hud{
   max-width: 920px;
@@ -31,7 +32,8 @@ body{
 }
 #controls button:hover{ filter:brightness(1.1); }
 
-/* Start button is not used (tap-anywhere), keep hidden */ #btnStart{ display:none; }
+/* Start button is not used (tap-anywhere), keep hidden */
+#btnStart{ display:none; }
 
 #board{
   width: min(920px, calc(100vw - 28px));
@@ -64,15 +66,29 @@ body{
 }
 
 /* =========================
-   LOADING SCREEN (WHITE)
+   SCREENS (fade system)
 ========================= */
-#loadingScreen{
+.screen{
   position:absolute;
   inset:0;
-  background:#ffffff;
   display:flex;
   align-items:center;
   justify-content:center;
+  opacity:0;
+  pointer-events:none;
+  transition: opacity 450ms ease;
+}
+
+.screen.show{
+  opacity:1;
+  pointer-events:auto;
+}
+
+/* =========================
+   LOADING SCREEN (WHITE)
+========================= */
+#loadingScreen{
+  background:#ffffff;
   z-index:1000;
 }
 
@@ -88,12 +104,7 @@ body{
    TITLE SCREEN (IMAGE)
 ========================= */
 #titleScreen{
-  position:absolute;
-  inset:0;
   background:#0b0b10;
-  display:none;
-  align-items:center;
-  justify-content:center;
   z-index:900;
 }
 
@@ -105,7 +116,8 @@ body{
   user-select:none;
 }
 
-/* CTA fade (opacity only; trust-first) */ .pressStart{
+/* CTA fade (opacity only; trust-first) */
+.pressStart{
   position:absolute;
   bottom:18%;
   left:50%;
@@ -143,10 +155,12 @@ body{
   background-position:center;
   cursor:pointer;
   transition:left 220ms ease, transform 220ms ease;
-  filter: drop-shadow(0 10px 12px rgba(0,0,0,0.35)); }
+  filter: drop-shadow(0 10px 12px rgba(0,0,0,0.35));
+}
 
 .shell.lift{
-  transform:translateX(-50%) translateY(-22px) scale(1.03); }
+  transform:translateX(-50%) translateY(-22px) scale(1.03);
+}
 
 #pearl{
   position:absolute;
@@ -161,7 +175,8 @@ body{
   background-repeat:no-repeat;
   background-position:center;
   z-index:20;
-  filter: drop-shadow(0 8px 10px rgba(0,0,0,0.35)); }
+  filter: drop-shadow(0 8px 10px rgba(0,0,0,0.35));
+}
 
 #overlay{
   position:absolute; inset:0;
