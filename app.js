@@ -1,12 +1,19 @@
 /* =========================
    Infinite Shells — app.js (FULL)
-   Flow:
-   1) Loading screen ~0.8s
-   2) Title screen + fading CTA
-   3) Tap 1 closes title -> ready
-   4) Tap 2 starts round
-   5) Tap-anywhere disabled during "Pick a shell." (shell taps only) ========================= */
+   Updates:
+   - Smooth fades between Loading <-> Title (no abrupt cut)
+   - Longer loading hold
+   - 3s "safety lock" after dismissing title (prevents accidental start)
+   - Fix "Press anywhere" double: you can disable overlay CTA if the image includes it
+========================= */
 
+/* === SETTINGS YOU CAN ADJUST === */
+const SHOW_TITLE_CTA_OVERLAY = true; // set FALSE if your title image already has "press anywhere" baked in
+const LOADING_HOLD_MS = 1600;         // longer logo screen
+const FADE_MS = 450;                  // must match CSS transition time
+const POST_TITLE_LOCK_MS = 3000;      // 3 seconds: taps won't start the round
+
+/* ---------- ASSETS (game) ---------- */
 const ASSETS = {
   ball: "https://i.imgur.com/kLGt0DN.png",
   shells: {
@@ -42,15 +49,26 @@ const btnReset     = document.getElementById("btnReset");
 
 const loadingScreen = document.getElementById("loadingScreen");
 const titleScreen   = document.getElementById("titleScreen");
+const titleCta      = document.querySelector(".pressStart");
 
 /* ---------- Helpers ---------- */
-const sleep = (ms) => new Promise(r => setTimeout(r, ms)); const rndInt = (n) => Math.floor(Math.random() * n);
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const rndInt = (n) => Math.floor(Math.random() * n);
+
+/* ---------- Screen helpers ---------- */
+function showScreen(el){
+  el.classList.add("show");
+}
+function hideScreen(el){
+  el.classList.remove("show");
+}
 
 /* ---------- State ---------- */
-let phase = "loading"; // loading -> title -> ready -> shuffling/guessing
+let phase = "loading"; // loading -> title -> lockout -> ready -> shuffling/guessing
 
 let score = 0;
-let bestScore = Number(localStorage.getItem("infiniteShells_bestScore") || "0"); let recordShownThisRun = false;
+let bestScore = Number(localStorage.getItem("infiniteShells_bestScore") || "0");
+let recordShownThisRun = false;
 
 let themeIndex = 0;
 let totalWinsThisRun = 0;
@@ -80,9 +98,12 @@ function computeSlotPercents(n){
 
   const span = 100 - leftMargin * 2;
   const step = span / (n - 1);
-  return Array.from({ length:n }, (_, i) => leftMargin + i * step); } function recomputeSlots(){ slotPerc = computeSlotPercents(shellCount); }
+  return Array.from({ length:n }, (_, i) => leftMargin + i * step);
+}
+function recomputeSlots(){ slotPerc = computeSlotPercents(shellCount); }
 
-/* ---------- Ladder rules ---------- */ function winsNeededForStage(s){
+/* ---------- Ladder rules ---------- */
+function winsNeededForStage(s){
   if (s === 3) return 2;
   if (s === 4) return 2;
   if (s === 5) return 2;
@@ -124,7 +145,8 @@ function difficultyFromProgress(totalWins, shellsNow, tier){
   const pauseChance = Math.min(0.35, 0.06 + ease * 0.14 + late * 0.18);
   const pauseExtraMax = Math.round(60 + ease * 140 + late * 240);
 
-  return { swaps, duration, pauseChance, pauseExtraMax }; }
+  return { swaps, duration, pauseChance, pauseExtraMax };
+}
 
 /* ---------- Theme ---------- */
 function applyTheme(){
@@ -134,10 +156,14 @@ function applyTheme(){
   const shellURL = ASSETS.shells[th.key];
   shells.forEach(s => s.style.backgroundImage = `url(${shellURL})`);
 
-  pearl.style.backgroundImage = `url(${ASSETS.ball})`; }
+  pearl.style.backgroundImage = `url(${ASSETS.ball})`;
+}
 
 /* ---------- UI ---------- */
-function setMessage(t){ msg.textContent = t; } function refreshHUD(){ scoreLine.textContent = `Score: ${score}`; } function showPearl(){ pearl.style.opacity = "1"; } function hidePearl(){ pearl.style.opacity = "0"; }
+function setMessage(t){ msg.textContent = t; }
+function refreshHUD(){ scoreLine.textContent = `Score: ${score}`; }
+function showPearl(){ pearl.style.opacity = "1"; }
+function hidePearl(){ pearl.style.opacity = "0"; }
 
 /* ---------- Build ---------- */
 function buildShells(n){
@@ -172,9 +198,11 @@ function buildShells(n){
 
 function placePearlUnderShell(shellId){
   const slotIndex = slots[shellId];
-  pearl.style.left = `${slotPerc[slotIndex]}%`; }
+  pearl.style.left = `${slotPerc[slotIndex]}%`;
+}
 
-/* ---------- Pearl selection ---------- */ function pickPearlForRound(){
+/* ---------- Pearl selection ---------- */
+function pickPearlForRound(){
   let next = rndInt(shellCount);
   if (shellCount > 1 && next === pearlUnderShellId){
     next = (next + 1 + rndInt(shellCount - 1)) % shellCount;
@@ -201,7 +229,8 @@ async function animateSwap(a, b, duration){
   await sleep(Math.max(60, duration * 0.55));
   shells[a].classList.remove("lift");
   shells[b].classList.remove("lift");
-  await sleep(Math.max(60, duration * 0.55)); }
+  await sleep(Math.max(60, duration * 0.55));
+}
 
 async function shuffle(){
   const d = difficultyFromProgress(totalWinsThisRun, shellCount, difficultyTier);
@@ -253,13 +282,28 @@ async function startRound(){
   await shuffle();
 }
 
-/* ---------- Tap-anywhere ---------- */ function handleGlobalTap(){
+/* ---------- Tap-anywhere ---------- */
+function handleGlobalTap(){
   if (phase === "loading") return;
 
   if (phase === "title"){
-    titleScreen.style.display = "none";
-    setMessage("Tap anywhere to Start.");
-    phase = "ready";
+    // fade title out
+    hideScreen(titleScreen);
+    phase = "lockout";
+    setMessage("Get ready…");
+
+    // safety lock so players don't accidentally start instantly
+    setTimeout(() => {
+      if (phase !== "lockout") return;
+      setMessage("Tap anywhere to Start.");
+      phase = "ready";
+    }, POST_TITLE_LOCK_MS);
+
+    return;
+  }
+
+  if (phase === "lockout"){
+    // ignore taps
     return;
   }
 
@@ -339,34 +383,36 @@ function resetGame(){
   refreshHUD();
   hidePearl();
 
-  // Back to title
-  titleScreen.style.display = "flex";
-  phase = "title";
-
-  buildShells(MIN_SHELLS);
-  pearlUnderShellId = rndInt(shellCount);
-  placePearlUnderShell(pearlUnderShellId);
-
-  setMessage("");
+  boot();
 }
 
-/* ---------- Boot sequence ---------- */ async function boot(){
+/* ---------- Boot sequence ---------- */
+async function boot(){
+  // CTA overlay toggle (fixes “press anywhere twice”)
+  if (titleCta) titleCta.style.display = SHOW_TITLE_CTA_OVERLAY ? "block" : "none";
+
   // Prepare game under screens
   buildShells(MIN_SHELLS);
   pearlUnderShellId = rndInt(shellCount);
   placePearlUnderShell(pearlUnderShellId);
   hidePearl();
 
-  // Show loading first
-  loadingScreen.style.display = "flex";
-  titleScreen.style.display = "none";
   setMessage("");
   phase = "loading";
 
-  await sleep(800);
+  // Show loading with fade-in
+  showScreen(loadingScreen);
+  hideScreen(titleScreen);
 
-  loadingScreen.style.display = "none";
-  titleScreen.style.display = "flex";
+  await sleep(LOADING_HOLD_MS);
+
+  // Crossfade: loading -> title
+  hideScreen(loadingScreen);
+  showScreen(titleScreen);
+
+  // wait for fade to finish so taps aren't weird mid-fade
+  await sleep(FADE_MS);
+
   phase = "title";
 }
 
