@@ -4,38 +4,43 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Infinite Shells</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
+  <link rel="stylesheet" href="styles.css" /> </head> <body>
 
   <div id="hud">
     <div id="scoreLine">Score: 0</div>
     <div id="msg"></div>
     <div id="controls">
+      <button id="btnStart">Start</button>
       <button id="btnReset">Reset</button>
     </div>
   </div>
 
-  <div id="board">
+  <div id="board" aria-label="Game Board">
 
-    <div id="rotateOverlay">Rotate to landscape</div>
+    <!-- Portrait warning (optional, only shows in portrait) -->
+    <div id="rotateOverlay" aria-hidden="true">
+      Rotate to landscape
+    </div>
 
-    <!-- LOADING SCREEN -->
-    <div id="loadingScreen" class="screen">
+    <!-- LOADING SCREEN (FIRST) -->
+    <div id="loadingScreen" aria-label="Loading Screen">
       <img
+        id="loadingLogo"
         src="https://i.imgur.com/zswxujC.png"
         alt="Nocturnal Logo"
         draggable="false"
       />
     </div>
 
-    <!-- TITLE SCREEN -->
-    <div id="titleScreen" class="screen">
+    <!-- TITLE SCREEN (SECOND) -->
+    <div id="titleScreen" aria-label="Title Screen">
       <img
-        src="https://i.imgur.com/tvgphjn.png"
+        id="titleImage"
+        src="https://i.imgur.com/dFeQ3Jr.png"
         alt="Infinite Shells Title"
         draggable="false"
       />
+      <div class="pressStart">PRESS ANYWHERE TO START</div>
     </div>
 
     <!-- GAME -->
