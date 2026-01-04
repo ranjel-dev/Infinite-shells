@@ -39,7 +39,7 @@ body{
   position:relative;
   overflow:hidden;
 
-  /* 🔒 LOCKED GAME BACKGROUND */
+  /* LOCKED GAME BACKGROUND */
   background:#0F2F1F;
 
   user-select:none;
@@ -70,13 +70,9 @@ body{
   inset:0;
   display:none;
   z-index:1000;
-  pointer-events:auto;
 }
 
-.screenBg{
-  position:absolute;
-  inset:0;
-}
+.screenBg{ position:absolute; inset:0; }
 
 .screenContent{
   position:absolute;
@@ -92,7 +88,7 @@ body{
 .screen.show .screenContent{ opacity:1; }
 .screen.fadeOut .screenContent{ opacity:0; }
 
-/* ---------- LOADING ---------- */
+/* Loading */
 #loadingScreen{ z-index:1100; }
 #loadingScreen .screenBg{ background:#ffffff; }
 
@@ -104,7 +100,7 @@ body{
   user-select:none;
 }
 
-/* ---------- TITLE ---------- */
+/* Title */
 #titleScreen{ z-index:1050; }
 #titleScreen .screenBg{ background:#0b0b10; }
 
@@ -178,7 +174,7 @@ body{
   filter: drop-shadow(0 8px 10px rgba(0,0,0,.35));
 }
 
-/* 🚨 CRITICAL FIX: overlay MUST NOT block taps */
+/* CRITICAL: overlay MUST NOT block taps */
 #overlay{
   position:absolute;
   inset:0;
@@ -186,7 +182,7 @@ body{
   opacity:0;
   transition:opacity 160ms ease;
 
-  pointer-events:none; /* ← THIS FIXES SHELL CLICKS */
+  pointer-events:none;
   z-index:50;
 }
 #overlay.flash{ opacity:1; }
