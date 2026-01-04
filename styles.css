@@ -30,6 +30,9 @@ body{
   cursor:pointer;
 }
 
+/* =========================
+   GAME BOARD
+========================= */
 #board{
   width:min(920px, calc(100vw - 28px));
   aspect-ratio:16/9;
@@ -39,7 +42,7 @@ body{
   position:relative;
   overflow:hidden;
 
-  /* LOCKED GAME BACKGROUND */
+  /* 🔒 LOCKED BACKGROUND */
   background:#0F2F1F;
 
   user-select:none;
@@ -63,7 +66,7 @@ body{
 }
 
 /* =========================
-   SCREENS (OPAQUE BACKGROUNDS)
+   SCREENS (OPAQUE)
 ========================= */
 .screen{
   position:absolute;
@@ -72,7 +75,10 @@ body{
   z-index:1000;
 }
 
-.screenBg{ position:absolute; inset:0; }
+.screenBg{
+  position:absolute;
+  inset:0;
+}
 
 .screenContent{
   position:absolute;
@@ -88,7 +94,7 @@ body{
 .screen.show .screenContent{ opacity:1; }
 .screen.fadeOut .screenContent{ opacity:0; }
 
-/* Loading */
+/* ---------- LOADING ---------- */
 #loadingScreen{ z-index:1100; }
 #loadingScreen .screenBg{ background:#ffffff; }
 
@@ -100,7 +106,7 @@ body{
   user-select:none;
 }
 
-/* Title */
+/* ---------- TITLE ---------- */
 #titleScreen{ z-index:1050; }
 #titleScreen .screenBg{ background:#0b0b10; }
 
@@ -159,6 +165,9 @@ body{
   transform:translateX(-50%) translateY(-22px) scale(1.03);
 }
 
+/* =========================
+   PEARL (LUMINÉS-INSPIRED)
+========================= */
 #pearl{
   position:absolute;
   width:var(--pearlSize);
@@ -167,14 +176,51 @@ body{
   transform:translateX(-50%);
   opacity:0;
   transition:opacity 140ms ease;
+  z-index:20;
+
   background-size:contain;
   background-repeat:no-repeat;
   background-position:center;
-  z-index:20;
-  filter: drop-shadow(0 8px 10px rgba(0,0,0,.35));
+
+  /* Soft, disciplined halo */
+  filter:
+    drop-shadow(0 0 10px rgba(180,255,220,0.22))
+    drop-shadow(0 0 22px rgba( 90,255,190,0.14))
+    drop-shadow(0 10px 14px rgba(0,0,0,0.35));
 }
 
-/* CRITICAL: overlay MUST NOT block taps */
+/* Optional pulse (not active unless JS adds class) */
+#pearl.revealPulse{
+  animation: pearlPulse 260ms ease-out 1;
+}
+
+@keyframes pearlPulse{
+  0%{
+    transform:translateX(-50%) scale(0.98);
+    filter:
+      drop-shadow(0 0 6px rgba(180,255,220,0.18))
+      drop-shadow(0 0 16px rgba(90,255,190,0.10))
+      drop-shadow(0 10px 14px rgba(0,0,0,0.35));
+  }
+  60%{
+    transform:translateX(-50%) scale(1.06);
+    filter:
+      drop-shadow(0 0 14px rgba(180,255,220,0.28))
+      drop-shadow(0 0 30px rgba(90,255,190,0.18))
+      drop-shadow(0 10px 14px rgba(0,0,0,0.35));
+  }
+  100%{
+    transform:translateX(-50%) scale(1);
+    filter:
+      drop-shadow(0 0 10px rgba(180,255,220,0.22))
+      drop-shadow(0 0 22px rgba(90,255,190,0.14))
+      drop-shadow(0 10px 14px rgba(0,0,0,0.35));
+  }
+}
+
+/* =========================
+   OVERLAY / RECORD
+========================= */
 #overlay{
   position:absolute;
   inset:0;
@@ -182,6 +228,7 @@ body{
   opacity:0;
   transition:opacity 160ms ease;
 
+  /* 🚨 DO NOT BLOCK INPUT */
   pointer-events:none;
   z-index:50;
 }
