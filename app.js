@@ -4,8 +4,8 @@
 const SHOW_TITLE_CTA_OVERLAY = true;
 
 /* screens */
-const LOADING_HOLD_MS = 5200;     // longer logo (per your request)
-const FADE_MS = 550;             // matches CSS
+const LOADING_HOLD_MS = 5200;     // longer logo
+const FADE_MS = 550;             // matches CSS transition
 const POST_TITLE_LOCK_MS = 3000; // prevent accidental start after title
 
 /* game assets */
@@ -23,7 +23,7 @@ const ASSETS = {
 };
 
 /* IMPORTANT: background is locked in CSS. We do NOT change board background in JS. */
-const SHELL_THEME_KEY = "ivory"; // just the shell art (safe default)
+const SHELL_THEME_KEY = "ivory";
 
 /* DOM */
 const board        = document.getElementById("board");
@@ -64,8 +64,8 @@ let score = 0;
 
 let shellCount = 3;
 let shells = [];
-let slots = [];     // slots[shellId] = slotIndex position
-let slotPerc = [];  // percent positions
+let slots = [];
+let slotPerc = [];
 
 let pearlUnderShellId = 0;
 let busy = false;
@@ -89,12 +89,11 @@ function recomputeSlots(){
   slotPerc = computeSlotPercents(shellCount);
 }
 
-/* difficulty (SAFE EARLY GAME) */
+/* difficulty (safe early game) */
 function difficultyForScore(currentScore){
-  // super stable early: slow + readable
-  if (currentScore < 40) return { swaps: 6, duration: 260, pauseChance: 0.14, pauseExtraMax: 100 };
-  if (currentScore < 100) return { swaps: 8, duration: 220, pauseChance: 0.12, pauseExtraMax: 90 };
-  return { swaps: 10, duration: 185, pauseChance: 0.10, pauseExtraMax: 80 };
+  if (currentScore < 40)  return { swaps: 6,  duration: 260, pauseChance: 0.14, pauseExtraMax: 100 };
+  if (currentScore < 100) return { swaps: 8,  duration: 220, pauseChance: 0.12, pauseExtraMax: 90  };
+  return { swaps: 10, duration: 185, pauseChance: 0.10, pauseExtraMax: 80  };
 }
 
 /* visuals */
@@ -125,10 +124,12 @@ function buildShells(n){
     slots[shellId] = shellId;
     d.style.left = `${slotPerc[slots[shellId]]}%`;
 
-    d.addEventListener("click", (e) => {
+    // IMPORTANT: pointerdown is much more reliable than click on mobile
+    d.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
       e.stopPropagation();
       handleGuess(shellId);
-    });
+    }, { passive:false });
 
     shells.push(d);
     shellLayer.appendChild(d);
@@ -147,8 +148,7 @@ function placePearlUnderShell(shellId){
 
 /* round */
 function pickPearlForRound(){
-  let next = rndInt(shellCount);
-  pearlUnderShellId = next;
+  pearlUnderShellId = rndInt(shellCount);
   placePearlUnderShell(pearlUnderShellId);
 }
 
@@ -156,7 +156,6 @@ async function animateSwap(a, b, duration){
   shells[a].classList.add("lift");
   shells[b].classList.add("lift");
 
-  // pearl stays with the shellId, so we only swap positions (slots)
   const tmp = slots[a];
   slots[a] = slots[b];
   slots[b] = tmp;
@@ -178,32 +177,34 @@ async function shuffle(){
 
   busy = true;
   canGuess = false;
+  phase = "shuffling";
   setMessage("Shuffling…");
 
-  for (let k = 0; k < d.swaps; k++){
-    let a = rndInt(shellCount);
-    let b = rndInt(shellCount);
-    while (b === a) b = rndInt(shellCount);
+  try{
+    for (let k = 0; k < d.swaps; k++){
+      let a = rndInt(shellCount);
+      let b = rndInt(shellCount);
+      while (b === a) b = rndInt(shellCount);
 
-    await animateSwap(a, b, d.duration);
+      await animateSwap(a, b, d.duration);
 
-    if (Math.random() < d.pauseChance) await sleep(rndInt(d.pauseExtraMax));
-    else await sleep(rndInt(55));
+      if (Math.random() < d.pauseChance) await sleep(rndInt(d.pauseExtraMax));
+      else await sleep(rndInt(55));
+    }
+  } finally {
+    // HARD GUARANTEE: after shuffle, you can ALWAYS guess
+    busy = false;
+    canGuess = true;
+    phase = "guessing";
+    setMessage("Pick a shell.");
   }
-
-  busy = false;
-  canGuess = true;
-  phase = "guessing";
-  setMessage("Pick a shell.");
 }
 
 async function startRound(){
   if (busy || canGuess) return;
 
-  phase = "shuffling";
-
-  // make sure pearl is under a valid shell and visible for the “watch” moment
   pickPearlForRound();
+
   setMessage("Watch the pearl…");
   showPearl();
   await sleep(900);
@@ -215,12 +216,13 @@ async function startRound(){
 
 /* guess */
 async function handleGuess(shellId){
+  // HARD GATE: only accept guesses AFTER shuffle ends
+  if (phase !== "guessing") return;
   if (!canGuess || busy) return;
 
   canGuess = false;
   busy = true;
 
-  // reveal pearl exactly under the correct shell
   placePearlUnderShell(pearlUnderShellId);
   showPearl();
 
@@ -249,9 +251,9 @@ async function handleGuess(shellId){
 /* tap-anywhere */
 function onGlobalTap(){
   if (phase === "loading") return;
+  if (phase === "shuffling" || phase === "guessing") return; // don’t allow global tap to mess with guessing
 
   if (phase === "title"){
-    // Immediately show the shells (no blank pause), but still lock starting the round for 3s
     hideScreen(titleScreen);
     hideGameUnderScreens(false);
 
@@ -281,6 +283,7 @@ document.addEventListener("pointerdown", onGlobalTap, { passive:true });
 function resetGame(){
   busy = false;
   canGuess = false;
+  phase = "loading";
   score = 0;
   refreshHUD();
   hidePearl();
@@ -291,10 +294,8 @@ async function boot(){
   if (lockTimer) clearTimeout(lockTimer);
   lockTimer = null;
 
-  // CTA overlay locked ON (tvgphjn needs it)
   if (titleCta) titleCta.style.display = SHOW_TITLE_CTA_OVERLAY ? "block" : "none";
 
-  // build game, but keep hidden behind screens until title tap
   buildShells(3);
   pearlUnderShellId = rndInt(shellCount);
   placePearlUnderShell(pearlUnderShellId);
