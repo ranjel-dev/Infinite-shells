@@ -8,39 +8,45 @@ body{
   padding:14px;
   background:#0b0b10;
   color:#e8e8ef;
-  font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-}
+  font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
 
 #hud{
-  max-width:920px;
+  max-width: 920px;
   margin:0 auto 12px;
   display:grid;
   gap:8px;
 }
 
 #scoreLine{ font-size:18px; }
-#msg{ min-height:1.2em; }
+#msg{ opacity:.92; min-height: 1.2em; }
 
-#btnReset{
+#controls button{
+  margin-right:10px;
   padding:10px 14px;
   border-radius:10px;
   border:1px solid #2c2c3a;
   background:#151522;
   color:#e8e8ef;
+  cursor:pointer;
 }
+#controls button:hover{ filter:brightness(1.1); }
+
+/* Start button is not used (tap-anywhere), keep hidden */ #btnStart{ display:none; }
 
 #board{
-  width:min(920px, calc(100vw - 28px));
-  aspect-ratio:16 / 9;
+  width: min(920px, calc(100vw - 28px));
+  aspect-ratio: 16 / 9;
   margin:0 auto;
   border-radius:22px;
   border:1px solid #2c2c3a;
   position:relative;
   overflow:hidden;
   background:#151522;
+  user-select:none;
   cursor:pointer;
 }
 
+/* Portrait warning overlay */
 #rotateOverlay{
   position:absolute;
   inset:0;
@@ -48,99 +54,131 @@ body{
   align-items:center;
   justify-content:center;
   background:#0b0b10;
+  color:#e8e8ef;
+  font-size:18px;
+  letter-spacing:0.08em;
   z-index:2000;
 }
 @media (orientation:portrait){
   #rotateOverlay{ display:flex; }
 }
 
-/* ---------- SCREENS ---------- */
-.screen{
+/* =========================
+   LOADING SCREEN (WHITE)
+========================= */
+#loadingScreen{
   position:absolute;
   inset:0;
+  background:#ffffff;
   display:flex;
   align-items:center;
   justify-content:center;
-  opacity:0;
-  pointer-events:none;
-  transition:opacity 450ms ease;
-}
-
-.screen.show{
-  opacity:1;
-  pointer-events:auto;
-}
-
-/* Loading */
-#loadingScreen{
-  background:#ffffff;
   z-index:1000;
 }
-#loadingScreen img{
-  max-width:80%;
-  max-height:60%;
+
+#loadingLogo{
+  max-width:82%;
+  max-height:64%;
   object-fit:contain;
+  user-select:none;
+  pointer-events:none;
 }
 
-/* Title */
+/* =========================
+   TITLE SCREEN (IMAGE)
+========================= */
 #titleScreen{
+  position:absolute;
+  inset:0;
   background:#0b0b10;
+  display:none;
+  align-items:center;
+  justify-content:center;
   z-index:900;
 }
-#titleScreen img{
+
+#titleImage{
   width:100%;
   height:100%;
   object-fit:cover;
+  pointer-events:none;
+  user-select:none;
 }
 
-/* Game */
+/* CTA fade (opacity only; trust-first) */ .pressStart{
+  position:absolute;
+  bottom:18%;
+  left:50%;
+  transform:translateX(-50%);
+  font-size:clamp(14px, 3vw, 22px);
+  letter-spacing:0.22em;
+  text-transform:uppercase;
+  color:#e8e8ef;
+  opacity:0.5;
+  animation:ctaFade 2s ease-in-out infinite;
+  pointer-events:none;
+}
+
+@keyframes ctaFade{
+  0%{ opacity:0.35 }
+  50%{ opacity:0.85 }
+  100%{ opacity:0.35 }
+}
+
+/* =========================
+   GAME ELEMENTS
+========================= */
 #shellLayer{ position:absolute; inset:0; z-index:10; }
 
 .shell{
   position:absolute;
   width:var(--shellSize);
   height:var(--shellSize);
-  bottom:26%;
+  bottom: 26%;
+  left:50%;
   transform:translateX(-50%);
+  border-radius:18px;
   background-size:contain;
   background-repeat:no-repeat;
   background-position:center;
+  cursor:pointer;
   transition:left 220ms ease, transform 220ms ease;
-}
+  filter: drop-shadow(0 10px 12px rgba(0,0,0,0.35)); }
 
 .shell.lift{
-  transform:translateX(-50%) translateY(-22px) scale(1.03);
-}
+  transform:translateX(-50%) translateY(-22px) scale(1.03); }
 
 #pearl{
   position:absolute;
   width:var(--pearlSize);
   height:var(--pearlSize);
-  bottom:calc(26% + 18px);
+  bottom: calc(26% + 18px);
+  left:50%;
   transform:translateX(-50%);
   opacity:0;
   transition:opacity 140ms ease;
   background-size:contain;
   background-repeat:no-repeat;
-}
+  background-position:center;
+  z-index:20;
+  filter: drop-shadow(0 8px 10px rgba(0,0,0,0.35)); }
 
 #overlay{
-  position:absolute;
-  inset:0;
-  background:rgba(255,40,60,.22);
-  opacity:0;
+  position:absolute; inset:0;
+  background:rgba(255, 40, 60, 0.22);
+  opacity:0; pointer-events:none;
   transition:opacity 160ms ease;
+  z-index:50;
 }
 #overlay.flash{ opacity:1; }
 
 #recordText{
-  position:absolute;
-  top:18px;
-  left:50%;
+  position:absolute; top:18px; left:50%;
   transform:translateX(-50%);
-  font-weight:800;
+  font-weight:800; letter-spacing:1px;
   color:#ffd54a;
-  opacity:0;
+  opacity:0; pointer-events:none;
   transition:opacity 250ms ease;
+  z-index:60;
 }
 #recordText.show{ opacity:1; }
