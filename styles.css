@@ -19,7 +19,7 @@ body{
 }
 
 #scoreLine{ font-size:18px; }
-#msg{ min-height:1.2em; }
+#msg{ min-height:1.2em; opacity:.92; }
 
 #btnReset{
   padding:10px 14px;
@@ -27,6 +27,7 @@ body{
   border:1px solid #2c2c3a;
   background:#151522;
   color:#e8e8ef;
+  cursor:pointer;
 }
 
 #board{
@@ -37,7 +38,11 @@ body{
   border:1px solid #2c2c3a;
   position:relative;
   overflow:hidden;
-  background:#151522;
+
+  /* LOCKED: dark green game background */
+  background:#0F2F1F;
+
+  user-select:none;
   cursor:pointer;
 }
 
@@ -49,12 +54,13 @@ body{
   justify-content:center;
   background:#0b0b10;
   z-index:2000;
+  letter-spacing:.08em;
 }
 @media (orientation:portrait){
   #rotateOverlay{ display:flex; }
 }
 
-/* ---------- SCREENS ---------- */
+/* ---------- SCREENS (opaque bg, content fades) ---------- */
 .screen{
   position:absolute;
   inset:0;
@@ -62,10 +68,7 @@ body{
   z-index:1000;
 }
 
-.screenBg{
-  position:absolute;
-  inset:0;
-}
+.screenBg{ position:absolute; inset:0; }
 
 .screenContent{
   position:absolute;
@@ -82,19 +85,25 @@ body{
 .screen.fadeOut .screenContent{ opacity:0; }
 
 /* Loading */
+#loadingScreen{ z-index:1100; }
 #loadingScreen .screenBg{ background:#ffffff; }
 #loadingLogo{
   max-width:82%;
   max-height:64%;
   object-fit:contain;
+  pointer-events:none;
+  user-select:none;
 }
 
 /* Title */
+#titleScreen{ z-index:1050; }
 #titleScreen .screenBg{ background:#0b0b10; }
 #titleImage{
   width:100%;
   height:100%;
   object-fit:cover;
+  pointer-events:none;
+  user-select:none;
 }
 
 .pressStart{
@@ -105,17 +114,18 @@ body{
   font-size:clamp(14px, 3vw, 22px);
   letter-spacing:0.22em;
   text-transform:uppercase;
+  color:#e8e8ef;
   opacity:.5;
   animation:ctaFade 2s ease-in-out infinite;
+  pointer-events:none;
 }
-
 @keyframes ctaFade{
   0%{opacity:.35}
   50%{opacity:.85}
   100%{opacity:.35}
 }
 
-/* Game */
+/* ---------- GAME ---------- */
 #shellLayer{ position:absolute; inset:0; z-index:10; }
 
 .shell{
@@ -124,13 +134,16 @@ body{
   height:var(--shellSize);
   bottom:26%;
   transform:translateX(-50%);
+  border-radius:18px;
   background-size:contain;
   background-repeat:no-repeat;
-  transition:left 220ms ease, transform 220ms ease;
+  background-position:center;
+  transition:left 260ms ease, transform 260ms ease;
+  filter: drop-shadow(0 10px 12px rgba(0,0,0,.35));
 }
 
 .shell.lift{
-  transform:translateX(-50%) translateY(-22px);
+  transform:translateX(-50%) translateY(-22px) scale(1.03);
 }
 
 #pearl{
@@ -143,6 +156,9 @@ body{
   transition:opacity 140ms ease;
   background-size:contain;
   background-repeat:no-repeat;
+  background-position:center;
+  z-index:20;
+  filter: drop-shadow(0 8px 10px rgba(0,0,0,.35));
 }
 
 #overlay{
@@ -151,6 +167,7 @@ body{
   background:rgba(255,40,60,.22);
   opacity:0;
   transition:opacity 160ms ease;
+  z-index:50;
 }
 #overlay.flash{ opacity:1; }
 
@@ -160,8 +177,10 @@ body{
   left:50%;
   transform:translateX(-50%);
   font-weight:800;
+  letter-spacing:1px;
   color:#ffd54a;
   opacity:0;
   transition:opacity 250ms ease;
+  z-index:60;
 }
 #recordText.show{ opacity:1; }
