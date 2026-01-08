@@ -670,4 +670,4 @@ btnReset.addEventListener("click", (e) => {
 });
 
 renderLifelines();
-boot();
+boot(); 
