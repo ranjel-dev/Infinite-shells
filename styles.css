@@ -2,10 +2,13 @@
   --shellSize: clamp(78px, 11vw, 120px);
   --pearlSize: clamp(44px, 6vw, 64px);
 
-  /* Theme-driven accent (set by JS) */
-  --accent: rgba(180,255,220,0.95);
-  --accentSoft: rgba(180,255,220,0.18);
-  --accentSofter: rgba(180,255,220,0.10);
+  /* Theme-driven accent (set by JS on #board) */
+  --accent: rgba(245,240,220,0.95);
+  --accentSoft: rgba(245,240,220,0.18);
+  --accentSofter: rgba(245,240,220,0.10);
+
+  /* Universal charge dot color (pops across all themes) */
+  --chargePop: #ffd54a;
 }
 
 body{
@@ -104,7 +107,6 @@ body{
 .lifeline:hover{
   border-color: rgba(255,255,255,0.14);
 }
-
 .lifeline:active{
   transform: translateY(1px);
 }
@@ -132,7 +134,7 @@ body{
   display:flex;
   gap:4px;
   margin-top:2px;
-  opacity:0.85;
+  opacity:0.95;
   pointer-events:none;
 }
 
@@ -144,13 +146,11 @@ body{
   box-shadow: 0 0 10px rgba(0,0,0,0.18) inset;
 }
 
-/* mock “available” look — you can later toggle classes from JS */
-.lifeline.isReady{
-  border-color: rgba(255,255,255,0.16);
+.charges i.filled{
+  background: var(--chargePop);
   box-shadow:
-    0 10px 16px rgba(0,0,0,0.30),
-    0 0 0 1px rgba(0,0,0,0.25) inset,
-    0 0 18px var(--accentSoft);
+    0 0 12px rgba(255, 213, 74, 0.40),
+    0 0 0 1px rgba(0,0,0,0.18) inset;
 }
 
 .lifeline.isLocked{
@@ -245,7 +245,7 @@ body{
   width:var(--shellSize);
   height:var(--shellSize);
 
-  /* ✅ MOVED UP (was 26%) */
+  /* moved up */
   bottom:32%;
 
   transform:translateX(-50%);
@@ -253,7 +253,7 @@ body{
   background-size:contain;
   background-repeat:no-repeat;
   background-position:center;
-  transition:left 260ms ease, transform 260ms ease;
+  transition:left 260ms ease, transform 260ms ease, opacity 160ms ease, filter 160ms ease;
   filter: drop-shadow(0 10px 12px rgba(0,0,0,.35));
 }
 
@@ -261,17 +261,21 @@ body{
   transform:translateX(-50%) translateY(-22px) scale(1.03);
 }
 
+/* Disabled shells (for 50/50) */
+.shell.disabled{
+  opacity:0.28;
+  filter: grayscale(0.4) blur(0.2px) drop-shadow(0 10px 12px rgba(0,0,0,.28));
+  pointer-events:none;
+}
+
 /* =========================
-   PEARL (LUMINÉS-INSPIRED)
+   PEARL
 ========================= */
 #pearl{
   position:absolute;
   width:var(--pearlSize);
   height:var(--pearlSize);
-
-  /* ✅ moved up to match shells */
   bottom:calc(32% + 18px);
-
   transform:translateX(-50%);
   opacity:0;
   transition:opacity 140ms ease;
@@ -281,40 +285,10 @@ body{
   background-repeat:no-repeat;
   background-position:center;
 
-  /* Soft, disciplined halo */
   filter:
     drop-shadow(0 0 10px rgba(180,255,220,0.22))
     drop-shadow(0 0 22px rgba( 90,255,190,0.14))
     drop-shadow(0 10px 14px rgba(0,0,0,0.35));
-}
-
-/* Optional pulse (not active unless JS adds class) */
-#pearl.revealPulse{
-  animation: pearlPulse 260ms ease-out 1;
-}
-
-@keyframes pearlPulse{
-  0%{
-    transform:translateX(-50%) scale(0.98);
-    filter:
-      drop-shadow(0 0 6px rgba(180,255,220,0.18))
-      drop-shadow(0 0 16px rgba(90,255,190,0.10))
-      drop-shadow(0 10px 14px rgba(0,0,0,0.35));
-  }
-  60%{
-    transform:translateX(-50%) scale(1.06);
-    filter:
-      drop-shadow(0 0 14px rgba(180,255,220,0.28))
-      drop-shadow(0 0 30px rgba(90,255,190,0.18))
-      drop-shadow(0 10px 14px rgba(0,0,0,0.35));
-  }
-  100%{
-    transform:translateX(-50%) scale(1);
-    filter:
-      drop-shadow(0 0 10px rgba(180,255,220,0.22))
-      drop-shadow(0 0 22px rgba(90,255,190,0.14))
-      drop-shadow(0 10px 14px rgba(0,0,0,0.35));
-  }
 }
 
 /* =========================
@@ -326,8 +300,6 @@ body{
   background:rgba(255,40,60,.22);
   opacity:0;
   transition:opacity 160ms ease;
-
-  /* 🚨 DO NOT BLOCK INPUT */
   pointer-events:none;
   z-index:50;
 }
