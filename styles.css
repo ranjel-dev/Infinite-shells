@@ -317,4 +317,4 @@ body{
   transition:opacity 250ms ease;
   z-index:60;
 }
-#recordText.show{ opacity:1; }
+#recordText.show{ opacity:1; } 
