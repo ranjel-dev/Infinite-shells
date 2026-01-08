@@ -2,9 +2,9 @@
    LOCKED / APPROVED BASE
 ========================= */
 const SHOW_TITLE_CTA_OVERLAY = true;
-const LOADING_HOLD_MS = 5200;
-const FADE_MS = 550;
-const POST_TITLE_LOCK_MS = 3000;
+const LOADING_HOLD_MS = 5200;      // longer logo screen
+const FADE_MS = 550;              // matches CSS
+const POST_TITLE_LOCK_MS = 3000;  // prevent accidental start after title
 
 /* =========================
    ASSETS
@@ -32,6 +32,17 @@ const THEMES = [
   { key:"red"    }
 ];
 
+/* Theme accent colors (for lifeline glow + UI) */
+const THEME_ACCENTS = {
+  ivory:  { accent: "rgba(180,255,220,0.95)", soft:"rgba(180,255,220,0.18)", softer:"rgba(180,255,220,0.10)" },
+  coral:  { accent: "rgba(255,170,165,0.95)", soft:"rgba(255,170,165,0.18)", softer:"rgba(255,170,165,0.10)" },
+  green:  { accent: "rgba(155,255,190,0.95)", soft:"rgba(155,255,190,0.18)", softer:"rgba(155,255,190,0.10)" },
+  gray:   { accent: "rgba(210,225,245,0.90)", soft:"rgba(210,225,245,0.16)", softer:"rgba(210,225,245,0.09)" },
+  purple: { accent: "rgba(205,170,255,0.95)", soft:"rgba(205,170,255,0.18)", softer:"rgba(205,170,255,0.10)" },
+  blue:   { accent: "rgba(150,205,255,0.95)", soft:"rgba(150,205,255,0.18)", softer:"rgba(150,205,255,0.10)" },
+  red:    { accent: "rgba(255,140,155,0.95)", soft:"rgba(255,140,155,0.18)", softer:"rgba(255,140,155,0.10)" }
+};
+
 /* =========================
    DOM
 ========================= */
@@ -46,6 +57,8 @@ const btnReset      = document.getElementById("btnReset");
 const loadingScreen = document.getElementById("loadingScreen");
 const titleScreen   = document.getElementById("titleScreen");
 const titleCta      = document.querySelector(".pressStart");
+
+const lifelinesWrap = document.getElementById("lifelines");
 
 /* =========================
    HELPERS
@@ -84,11 +97,11 @@ let score = 0;
 let busy = false;
 let canGuess = false;
 
-/* ladder (internal terms ok) */
-let stageShells = 3;      // 3..7
-let stageWins = 0;        // wins within current stage
+/* ladder */
+let stageShells = 3;   // 3..7
+let stageWins = 0;     // wins within current stage
 let totalWinsThisRun = 0;
-let difficultyTier = 0;   // bumps each time 7->3 reset happens
+let difficultyTier = 0;
 
 /* theme */
 let themeIndex = 0;
@@ -96,8 +109,8 @@ let themeIndex = 0;
 /* shells layout */
 let shellCount = 3;
 let shells = [];
-let slots = [];
-let slotPerc = [];
+let slots = [];     // slots[shellId] = slotIndex
+let slotPerc = [];  // percents
 let pearlUnderShellId = 0;
 
 /* =========================
@@ -157,6 +170,7 @@ function difficultyFromProgress(totalWins, shellsNow, tier){
 
   const baseSwaps = 6 + (shellsNow - 3) * 2;
   const tierBumpSwaps = Math.min(8, tier * 1.0);
+
   const swaps = Math.round(baseSwaps + ease * 8 + tierBumpSwaps);
 
   let duration = Math.round(
@@ -171,13 +185,25 @@ function difficultyFromProgress(totalWins, shellsNow, tier){
 }
 
 /* =========================
-   ART APPLY
+   THEME APPLY
+   (shell art + lifeline color scheme)
 ========================= */
+function applyThemeVars(){
+  const th = THEMES[themeIndex % THEMES.length];
+  const c = THEME_ACCENTS[th.key] || THEME_ACCENTS.ivory;
+
+  board.style.setProperty("--accent", c.accent);
+  board.style.setProperty("--accentSoft", c.soft);
+  board.style.setProperty("--accentSofter", c.softer);
+}
+
 function applyArt(){
   const th = THEMES[themeIndex % THEMES.length];
   const shellURL = ASSETS.shells[th.key];
   shells.forEach(s => s.style.backgroundImage = `url(${shellURL})`);
   pearl.style.backgroundImage = `url(${ASSETS.ball})`;
+
+  applyThemeVars();
 }
 
 /* =========================
@@ -289,7 +315,7 @@ async function startRound(){
 
   pickPearlForRound();
 
-  setMessage(`Watch the pearl… (${stageShells} shells)`);
+  setMessage("Watch the pearl…");
   showPearl();
   await sleep(900);
   hidePearl();
@@ -322,40 +348,23 @@ async function handleGuess(shellId){
 
     const result = advanceStageIfReady();
 
-    // in-game wording (no win/level/stage language)
+    // (old terms allowed in code; keep in-game text clean)
     if (result.didReset){
-      setMessage("Shift. Intensity rises.");
+      setMessage("Complete.");
     } else if (result.changed){
-      setMessage(`Shift. ${stageShells} shells.`);
+      setMessage("Advance.");
     } else {
-      setMessage("Locked.");
+      setMessage("Correct.");
     }
 
     await sleep(850);
     hidePearl();
 
-    /* ✅ FIX #1 (THEME POP ISSUE)
-       If we hit the 7 -> 3 reset, the themeIndex has already advanced.
-       We rebuild shells NOW (while still in this post-correct pause),
-       so the next theme is already visible BEFORE the player taps.
-    */
-    if (result.didReset){
-      buildShells(stageShells); // stageShells is now 3
-      hidePearl();              // hard guarantee: pearl not visible between rounds
-    } else if (result.changed){
-      // for shell-count changes, pre-build too so the new layout is visible immediately
-      buildShells(stageShells);
-      hidePearl();
-    } else {
-      // no rebuild needed; keep current shell layout, just ensure art is correct
-      applyArt();
-    }
-
     busy = false;
     phase = "ready";
-    setMessage("Tap anywhere for next round");
+    setMessage("Tap anywhere");
   } else {
-    setMessage("Wrong — Game Over");
+    setMessage("Wrong.");
     overlay.classList.add("flash");
     await sleep(520);
     overlay.classList.remove("flash");
@@ -367,7 +376,10 @@ async function handleGuess(shellId){
 /* =========================
    TAP ANYWHERE
 ========================= */
-function onGlobalTap(){
+function onGlobalTap(e){
+  // if the tap started on lifelines, don't treat it as a global tap
+  if (e && e.target && e.target.closest && e.target.closest("#lifelines")) return;
+
   if (phase === "loading") return;
   if (phase === "shuffling" || phase === "guessing") return;
 
@@ -382,7 +394,7 @@ function onGlobalTap(){
     lockTimer = setTimeout(() => {
       if (phase !== "lockout") return;
       phase = "ready";
-      setMessage("Tap anywhere to start");
+      setMessage("Tap anywhere");
     }, POST_TITLE_LOCK_MS);
 
     return;
@@ -395,6 +407,21 @@ function onGlobalTap(){
   }
 }
 document.addEventListener("pointerdown", onGlobalTap, { passive:true });
+
+/* =========================
+   LIFELINES (mock, no power yet)
+   - stops propagation so it never triggers startRound
+========================= */
+if (lifelinesWrap){
+  lifelinesWrap.querySelectorAll(".lifeline").forEach(btn => {
+    btn.classList.add("isReady"); // mock availability look
+    btn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // placeholder (no effect yet)
+    }, { passive:false });
+  });
+}
 
 /* =========================
    RESET / BOOT
