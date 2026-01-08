@@ -1,6 +1,11 @@
 :root{
   --shellSize: clamp(78px, 11vw, 120px);
   --pearlSize: clamp(44px, 6vw, 64px);
+
+  /* Theme-driven accent (set by JS) */
+  --accent: rgba(180,255,220,0.95);
+  --accentSoft: rgba(180,255,220,0.18);
+  --accentSofter: rgba(180,255,220,0.10);
 }
 
 body{
@@ -63,6 +68,94 @@ body{
 }
 @media (orientation:portrait){
   #rotateOverlay{ display:flex; }
+}
+
+/* =========================
+   LIFELINES (TOP RIGHT)
+========================= */
+#lifelines{
+  position:absolute;
+  top:14px;
+  right:14px;
+  display:flex;
+  gap:10px;
+  z-index:80;
+  pointer-events:auto;
+}
+
+.lifeline{
+  width:64px;
+  height:64px;
+  border-radius:16px;
+  background:rgba(10, 16, 18, 0.55);
+  border:1px solid rgba(255,255,255,0.10);
+  color:var(--accent);
+  display:grid;
+  place-items:center;
+  gap:2px;
+  padding:8px 8px 6px;
+  cursor:pointer;
+
+  box-shadow:
+    0 10px 16px rgba(0,0,0,0.30),
+    0 0 0 1px rgba(0,0,0,0.25) inset;
+}
+
+.lifeline:hover{
+  border-color: rgba(255,255,255,0.14);
+}
+
+.lifeline:active{
+  transform: translateY(1px);
+}
+
+.lifeline svg{
+  width:26px;
+  height:26px;
+  fill: currentColor;
+  filter:
+    drop-shadow(0 0 8px var(--accentSoft))
+    drop-shadow(0 0 18px var(--accentSofter));
+}
+
+.lifeLabel{
+  font-size:10px;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  opacity:0.85;
+  line-height:1;
+  margin-top:2px;
+  pointer-events:none;
+}
+
+.charges{
+  display:flex;
+  gap:4px;
+  margin-top:2px;
+  opacity:0.85;
+  pointer-events:none;
+}
+
+.charges i{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background: rgba(255,255,255,0.14);
+  box-shadow: 0 0 10px rgba(0,0,0,0.18) inset;
+}
+
+/* mock “available” look — you can later toggle classes from JS */
+.lifeline.isReady{
+  border-color: rgba(255,255,255,0.16);
+  box-shadow:
+    0 10px 16px rgba(0,0,0,0.30),
+    0 0 0 1px rgba(0,0,0,0.25) inset,
+    0 0 18px var(--accentSoft);
+}
+
+.lifeline.isLocked{
+  opacity:0.45;
+  filter:saturate(0.85);
 }
 
 /* =========================
@@ -151,7 +244,10 @@ body{
   position:absolute;
   width:var(--shellSize);
   height:var(--shellSize);
-  bottom:26%;
+
+  /* ✅ MOVED UP (was 26%) */
+  bottom:32%;
+
   transform:translateX(-50%);
   border-radius:18px;
   background-size:contain;
@@ -172,7 +268,10 @@ body{
   position:absolute;
   width:var(--pearlSize);
   height:var(--pearlSize);
-  bottom:calc(26% + 18px);
+
+  /* ✅ moved up to match shells */
+  bottom:calc(32% + 18px);
+
   transform:translateX(-50%);
   opacity:0;
   transition:opacity 140ms ease;
