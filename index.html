@@ -20,6 +20,47 @@
 
     <div id="rotateOverlay">Rotate to landscape</div>
 
+    <!-- Lifelines (top-right overlay) -->
+    <div id="lifelines" aria-label="Lifelines">
+      <button class="lifeline" data-life="slow" aria-label="Slow">
+        <!-- Hourglass -->
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M7 2h10a1 1 0 0 1 0 2h-1v2.3c0 1.2-.6 2.3-1.6 3l-1.9 1.3 1.9 1.3c1 .7 1.6 1.8 1.6 3V20h1a1 1 0 1 1 0 2H7a1 1 0 1 1 0-2h1v-2.3c0-1.2.6-2.3 1.6-3l1.9-1.3-1.9-1.3c-1-.7-1.6-1.8-1.6-3V4H7a1 1 0 1 1 0-2Zm3 4.3c0 .6.3 1.1.8 1.4L12 9l1.2-.8c.5-.3.8-.8.8-1.4V4h-4v2.3Zm0 11.4V20h4v-2.3c0-.6-.3-1.1-.8-1.4L12 15l-1.2.8c-.5.3-.8.8-.8 1.4Z"/>
+        </svg>
+        <span class="lifeLabel">Slow</span>
+        <span class="charges" aria-hidden="true"><i></i><i></i><i></i></span>
+      </button>
+
+      <button class="lifeline" data-life="shield" aria-label="Shield">
+        <!-- Shield Plate -->
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 2c3.7 2.3 6.8 2.6 8.5 2.7.8 0 1.5.7 1.5 1.5v6.2c0 5.4-3.6 9.1-10 10.6C5.6 21.5 2 17.8 2 12.4V6.2c0-.8.7-1.5 1.5-1.5C5.2 4.6 8.3 4.3 12 2Zm0 3.2c-2.8 1.5-5.2 1.8-6.8 1.9v5.3c0 4 2.7 6.8 6.8 8 4.1-1.2 6.8-4 6.8-8V7.1c-1.6-.1-4-.4-6.8-1.9Z"/>
+        </svg>
+        <span class="lifeLabel">Shield</span>
+        <span class="charges" aria-hidden="true"><i></i><i></i><i></i></span>
+      </button>
+
+      <button class="lifeline" data-life="fifty" aria-label="50/50">
+        <!-- Split Coin -->
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2Zm0 2v16a8 8 0 0 1 0-16Z"/>
+          <path d="M12 4a8 8 0 0 1 0 16V4Z"/>
+        </svg>
+        <span class="lifeLabel">50/50</span>
+        <span class="charges" aria-hidden="true"><i></i><i></i><i></i></span>
+      </button>
+
+      <button class="lifeline" data-life="reveal" aria-label="Reveal">
+        <!-- Eye -->
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 5c5.5 0 9.6 4.1 10.9 6.5a1 1 0 0 1 0 1C21.6 14.9 17.5 19 12 19S2.4 14.9 1.1 12.5a1 1 0 0 1 0-1C2.4 9.1 6.5 5 12 5Zm0 2C7.7 7 4.3 10 3.2 12c1.1 2 4.5 5 8.8 5s7.7-3 8.8-5C19.7 10 16.3 7 12 7Z"/>
+          <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm0 2a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z"/>
+        </svg>
+        <span class="lifeLabel">Reveal</span>
+        <span class="charges" aria-hidden="true"><i></i><i></i><i></i></span>
+      </button>
+    </div>
+
     <!-- LOADING SCREEN -->
     <div id="loadingScreen" class="screen">
       <div class="screenBg"></div>
