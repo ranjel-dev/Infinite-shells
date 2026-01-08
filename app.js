@@ -2,9 +2,9 @@
    LOCKED / APPROVED BASE
 ========================= */
 const SHOW_TITLE_CTA_OVERLAY = true;
-const LOADING_HOLD_MS = 5200;      // longer logo screen
-const FADE_MS = 550;              // matches CSS
-const POST_TITLE_LOCK_MS = 3000;  // prevent accidental start after title
+const LOADING_HOLD_MS = 5200;
+const FADE_MS = 550;
+const POST_TITLE_LOCK_MS = 3000;
 
 /* =========================
    ASSETS
@@ -32,15 +32,15 @@ const THEMES = [
   { key:"red"    }
 ];
 
-/* Theme accent colors (for lifeline glow + UI) */
+/* Better “match the shell” accents (first theme fixed) */
 const THEME_ACCENTS = {
-  ivory:  { accent: "rgba(180,255,220,0.95)", soft:"rgba(180,255,220,0.18)", softer:"rgba(180,255,220,0.10)" },
-  coral:  { accent: "rgba(255,170,165,0.95)", soft:"rgba(255,170,165,0.18)", softer:"rgba(255,170,165,0.10)" },
-  green:  { accent: "rgba(155,255,190,0.95)", soft:"rgba(155,255,190,0.18)", softer:"rgba(155,255,190,0.10)" },
-  gray:   { accent: "rgba(210,225,245,0.90)", soft:"rgba(210,225,245,0.16)", softer:"rgba(210,225,245,0.09)" },
-  purple: { accent: "rgba(205,170,255,0.95)", soft:"rgba(205,170,255,0.18)", softer:"rgba(205,170,255,0.10)" },
-  blue:   { accent: "rgba(150,205,255,0.95)", soft:"rgba(150,205,255,0.18)", softer:"rgba(150,205,255,0.10)" },
-  red:    { accent: "rgba(255,140,155,0.95)", soft:"rgba(255,140,155,0.18)", softer:"rgba(255,140,155,0.10)" }
+  ivory:  { accent:"rgba(245,240,220,0.96)", soft:"rgba(245,240,220,0.18)", softer:"rgba(245,240,220,0.10)" },
+  coral:  { accent:"rgba(255,170,165,0.96)", soft:"rgba(255,170,165,0.18)", softer:"rgba(255,170,165,0.10)" },
+  green:  { accent:"rgba(155,255,190,0.96)", soft:"rgba(155,255,190,0.18)", softer:"rgba(155,255,190,0.10)" },
+  gray:   { accent:"rgba(220,225,235,0.94)", soft:"rgba(220,225,235,0.16)", softer:"rgba(220,225,235,0.09)" },
+  purple: { accent:"rgba(205,170,255,0.96)", soft:"rgba(205,170,255,0.18)", softer:"rgba(205,170,255,0.10)" },
+  blue:   { accent:"rgba(150,205,255,0.96)", soft:"rgba(150,205,255,0.18)", softer:"rgba(150,205,255,0.10)" },
+  red:    { accent:"rgba(255,140,155,0.96)", soft:"rgba(255,140,155,0.18)", softer:"rgba(255,140,155,0.10)" }
 };
 
 /* =========================
@@ -99,7 +99,7 @@ let canGuess = false;
 
 /* ladder */
 let stageShells = 3;   // 3..7
-let stageWins = 0;     // wins within current stage
+let stageWins = 0;
 let totalWinsThisRun = 0;
 let difficultyTier = 0;
 
@@ -109,9 +109,17 @@ let themeIndex = 0;
 /* shells layout */
 let shellCount = 3;
 let shells = [];
-let slots = [];     // slots[shellId] = slotIndex
-let slotPerc = [];  // percents
+let slots = [];
+let slotPerc = [];
 let pearlUnderShellId = 0;
+
+/* lifelines */
+const LIFE_MAX = 3;
+let life = { slow:1, shield:1, fifty:0, reveal:0 }; // starts with 1 slow + 1 shield
+let usedThisRound = { slow:false, shield:false, fifty:false, reveal:false };
+let slowActiveThisRound = false;
+let shieldArmed = false;          // if true, first wrong guess is forgiven
+let fiftyAppliedThisRound = false;
 
 /* =========================
    LAYOUT
@@ -133,60 +141,7 @@ function recomputeSlots(){
 }
 
 /* =========================
-   LADDER: 2-2-2-1-1
-========================= */
-function winsNeededForStage(s){
-  if (s === 3) return 2;
-  if (s === 4) return 2;
-  if (s === 5) return 2;
-  if (s === 6) return 1;
-  if (s === 7) return 1;
-  return 2;
-}
-
-function advanceStageIfReady(){
-  const need = winsNeededForStage(stageShells);
-  if (stageWins < need) return { changed:false, didReset:false };
-
-  stageWins = 0;
-
-  if (stageShells === 7){
-    stageShells = 3;
-    themeIndex = (themeIndex + 1) % THEMES.length;
-    difficultyTier++;
-    return { changed:true, didReset:true };
-  } else {
-    stageShells++;
-    return { changed:true, didReset:false };
-  }
-}
-
-/* =========================
-   DIFFICULTY
-========================= */
-function difficultyFromProgress(totalWins, shellsNow, tier){
-  const t = Math.min(1, totalWins / 40);
-  const ease = t * t * (3 - 2 * t);
-
-  const baseSwaps = 6 + (shellsNow - 3) * 2;
-  const tierBumpSwaps = Math.min(8, tier * 1.0);
-
-  const swaps = Math.round(baseSwaps + ease * 8 + tierBumpSwaps);
-
-  let duration = Math.round(
-    270 - ease * 120 - (shellsNow - 3) * 12 - tier * 8
-  );
-  duration = Math.max(95, duration);
-
-  const pauseChance = Math.min(0.30, 0.10 + ease * 0.10);
-  const pauseExtraMax = Math.round(70 + ease * 140);
-
-  return { swaps, duration, pauseChance, pauseExtraMax };
-}
-
-/* =========================
    THEME APPLY
-   (shell art + lifeline color scheme)
 ========================= */
 function applyThemeVars(){
   const th = THEMES[themeIndex % THEMES.length];
@@ -202,7 +157,6 @@ function applyArt(){
   const shellURL = ASSETS.shells[th.key];
   shells.forEach(s => s.style.backgroundImage = `url(${shellURL})`);
   pearl.style.backgroundImage = `url(${ASSETS.ball})`;
-
   applyThemeVars();
 }
 
@@ -243,6 +197,128 @@ function buildShells(n){
 function placePearlUnderShell(shellId){
   const slotIndex = slots[shellId];
   pearl.style.left = `${slotPerc[slotIndex]}%`;
+}
+
+/* =========================
+   LIFELINE UI
+========================= */
+function clampCharges(){
+  for (const k of Object.keys(life)){
+    life[k] = Math.max(0, Math.min(LIFE_MAX, life[k]));
+  }
+}
+
+function renderLifelines(){
+  if (!lifelinesWrap) return;
+
+  lifelinesWrap.querySelectorAll(".lifeline").forEach(btn => {
+    const key = btn.dataset.life;
+    const charges = life[key] ?? 0;
+
+    // lock look if empty
+    btn.classList.toggle("isLocked", charges <= 0);
+
+    // fill dots
+    const dots = btn.querySelectorAll(".charges i");
+    dots.forEach((dot, idx) => {
+      dot.classList.toggle("filled", idx < charges);
+    });
+  });
+}
+
+function addCharge(key, amt=1){
+  life[key] = Math.min(LIFE_MAX, (life[key] ?? 0) + amt);
+}
+
+/* Award logic so they accumulate “when you get far” */
+function awardChargesOnProgress(result){
+  // Only award on actual stage changes
+  if (!result.changed) return;
+
+  if (result.didReset){
+    // Big milestone: give +1 to all (capped)
+    addCharge("slow", 1);
+    addCharge("shield", 1);
+    addCharge("fifty", 1);
+    addCharge("reveal", 1);
+  } else {
+    // Entering 4/5/6/7 gives specific tools
+    if (stageShells === 4) addCharge("slow", 1);
+    if (stageShells === 5) addCharge("shield", 1);
+    if (stageShells === 6) addCharge("fifty", 1);
+    if (stageShells === 7) addCharge("reveal", 1);
+  }
+
+  clampCharges();
+  renderLifelines();
+}
+
+function resetRoundPowers(){
+  usedThisRound = { slow:false, shield:false, fifty:false, reveal:false };
+  slowActiveThisRound = false;
+  shieldArmed = false;
+  fiftyAppliedThisRound = false;
+
+  // clear 50/50 disabled shells
+  shells.forEach(s => s.classList.remove("disabled"));
+}
+
+/* =========================
+   LADDER: 2-2-2-1-1 (code term ok)
+========================= */
+function winsNeededForStage(s){
+  if (s === 3) return 2;
+  if (s === 4) return 2;
+  if (s === 5) return 2;
+  if (s === 6) return 1;
+  if (s === 7) return 1;
+  return 2;
+}
+
+function advanceStageIfReady(){
+  const need = winsNeededForStage(stageShells);
+  if (stageWins < need) return { changed:false, didReset:false };
+
+  stageWins = 0;
+
+  if (stageShells === 7){
+    stageShells = 3;
+    themeIndex = (themeIndex + 1) % THEMES.length;
+    difficultyTier++;
+    return { changed:true, didReset:true };
+  } else {
+    stageShells++;
+    return { changed:true, didReset:false };
+  }
+}
+
+/* =========================
+   DIFFICULTY
+========================= */
+function difficultyFromProgress(totalWins, shellsNow, tier){
+  const t = Math.min(1, totalWins / 40);
+  const ease = t * t * (3 - 2 * t);
+
+  const baseSwaps = 6 + (shellsNow - 3) * 2;
+  const tierBumpSwaps = Math.min(8, tier * 1.0);
+
+  let swaps = Math.round(baseSwaps + ease * 8 + tierBumpSwaps);
+
+  let duration = Math.round(
+    270 - ease * 120 - (shellsNow - 3) * 12 - tier * 8
+  );
+  duration = Math.max(95, duration);
+
+  const pauseChance = Math.min(0.30, 0.10 + ease * 0.10);
+  const pauseExtraMax = Math.round(70 + ease * 140);
+
+  // Slow lifeline modifies this round only
+  if (slowActiveThisRound){
+    duration = Math.round(duration * 1.65);
+    swaps = Math.max(4, swaps - 2);
+  }
+
+  return { swaps, duration, pauseChance, pauseExtraMax };
 }
 
 /* =========================
@@ -300,9 +376,26 @@ async function shuffle(){
   }
 }
 
+/* IMPORTANT FIX:
+   When stage changes (including reset to 3), rebuild & apply theme NOW,
+   not on the next tap. This kills the “pop-in after press”.
+*/
+function syncStageVisualsIfNeeded(prevStageShells){
+  if (stageShells !== prevStageShells){
+    buildShells(stageShells);
+    hidePearl();
+  } else {
+    applyArt();
+  }
+}
+
 async function startRound(){
   if (busy || canGuess) return;
 
+  // always clear per-round effects at round start
+  resetRoundPowers();
+
+  // ensure correct shell count is already there
   if (shellCount !== stageShells){
     buildShells(stageShells);
   } else {
@@ -325,6 +418,85 @@ async function startRound(){
 }
 
 /* =========================
+   LIFELINE EFFECTS
+========================= */
+function canUseLife(key){
+  return (life[key] ?? 0) > 0 && !usedThisRound[key] && !busy;
+}
+
+function spendLife(key){
+  life[key] = Math.max(0, (life[key] ?? 0) - 1);
+  usedThisRound[key] = true;
+  renderLifelines();
+}
+
+async function useSlow(){
+  // Can be used in ready OR during shuffling (before the bulk of swaps)
+  if (!(phase === "ready" || phase === "shuffling")) return;
+  if (!canUseLife("slow")) return;
+
+  spendLife("slow");
+  slowActiveThisRound = true;
+  setMessage("Slow armed.");
+  await sleep(220);
+  if (phase === "guessing") setMessage("Pick a shell.");
+}
+
+async function useShield(){
+  // Arm before you guess
+  if (!(phase === "ready" || phase === "guessing")) return;
+  if (!canUseLife("shield")) return;
+
+  spendLife("shield");
+  shieldArmed = true;
+  setMessage("Shield armed.");
+  await sleep(220);
+  if (phase === "guessing") setMessage("Pick a shell.");
+}
+
+async function useFifty(){
+  // Only meaningful during guessing
+  if (phase !== "guessing") return;
+  if (!canUseLife("fifty")) return;
+
+  spendLife("fifty");
+  fiftyAppliedThisRound = true;
+
+  // Keep pearl shell + 1 random wrong shell enabled; disable rest.
+  const wrong = [];
+  for (let i = 0; i < shellCount; i++){
+    if (i !== pearlUnderShellId) wrong.push(i);
+  }
+  const keepWrong = wrong[rndInt(wrong.length)];
+  for (let i = 0; i < shellCount; i++){
+    const shouldDisable = (i !== pearlUnderShellId && i !== keepWrong);
+    shells[i].classList.toggle("disabled", shouldDisable);
+  }
+
+  setMessage("50/50 used.");
+  await sleep(240);
+  setMessage("Pick a shell.");
+}
+
+async function useReveal(){
+  // Only during guessing
+  if (phase !== "guessing") return;
+  if (!canUseLife("reveal")) return;
+
+  spendLife("reveal");
+
+  // Brief honest reveal
+  placePearlUnderShell(pearlUnderShellId);
+  shells[pearlUnderShellId].classList.add("lift");
+  showPearl();
+  await sleep(480);
+  hidePearl();
+  shells[pearlUnderShellId].classList.remove("lift");
+
+  setMessage("Pick a shell.");
+}
+
+/* =========================
    GUESS
 ========================= */
 async function handleGuess(shellId){
@@ -334,6 +506,7 @@ async function handleGuess(shellId){
   canGuess = false;
   busy = true;
 
+  // Show pearl where it truly is
   placePearlUnderShell(pearlUnderShellId);
   showPearl();
 
@@ -346,24 +519,34 @@ async function handleGuess(shellId){
     totalWinsThisRun++;
     stageWins++;
 
+    const prevStage = stageShells;
     const result = advanceStageIfReady();
 
-    // (old terms allowed in code; keep in-game text clean)
-    if (result.didReset){
-      setMessage("Complete.");
-    } else if (result.changed){
-      setMessage("Advance.");
-    } else {
-      setMessage("Correct.");
-    }
+    // Award charges on progress
+    awardChargesOnProgress(result);
 
-    await sleep(850);
+    await sleep(650);
     hidePearl();
+
+    // ✅ FIX #1: Sync visuals immediately when stage changes (including reset to 3)
+    syncStageVisualsIfNeeded(prevStage);
 
     busy = false;
     phase = "ready";
     setMessage("Tap anywhere");
   } else {
+    // If shield armed, forgive ONE wrong guess (no score, no progress)
+    if (shieldArmed){
+      shieldArmed = false;
+      await sleep(420);
+      hidePearl();
+
+      busy = false;
+      phase = "ready";
+      setMessage("Saved.");
+      return;
+    }
+
     setMessage("Wrong.");
     overlay.classList.add("flash");
     await sleep(520);
@@ -377,8 +560,8 @@ async function handleGuess(shellId){
    TAP ANYWHERE
 ========================= */
 function onGlobalTap(e){
-  // if the tap started on lifelines, don't treat it as a global tap
-  if (e && e.target && e.target.closest && e.target.closest("#lifelines")) return;
+  // If tap started on lifelines, ignore global tap
+  if (e?.target?.closest && e.target.closest("#lifelines")) return;
 
   if (phase === "loading") return;
   if (phase === "shuffling" || phase === "guessing") return;
@@ -409,16 +592,19 @@ function onGlobalTap(e){
 document.addEventListener("pointerdown", onGlobalTap, { passive:true });
 
 /* =========================
-   LIFELINES (mock, no power yet)
-   - stops propagation so it never triggers startRound
+   LIFELINE INPUT
 ========================= */
 if (lifelinesWrap){
   lifelinesWrap.querySelectorAll(".lifeline").forEach(btn => {
-    btn.classList.add("isReady"); // mock availability look
     btn.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      // placeholder (no effect yet)
+
+      const key = btn.dataset.life;
+      if (key === "slow")   useSlow();
+      if (key === "shield") useShield();
+      if (key === "fifty")  useFifty();
+      if (key === "reveal") useReveal();
     }, { passive:false });
   });
 }
@@ -439,8 +625,13 @@ function resetGame(){
   themeIndex = 0;
   difficultyTier = 0;
 
+  // lifelines start state
+  life = { slow:1, shield:1, fifty:0, reveal:0 };
+  resetRoundPowers();
+
   refreshHUD();
   hidePearl();
+  renderLifelines();
   boot();
 }
 
@@ -449,6 +640,9 @@ async function boot(){
   lockTimer = null;
 
   if (titleCta) titleCta.style.display = SHOW_TITLE_CTA_OVERLAY ? "block" : "none";
+
+  // Ensure theme vars are correct immediately (fixes “first theme mismatch”)
+  applyThemeVars();
 
   buildShells(3);
   pearlUnderShellId = rndInt(shellCount);
@@ -475,4 +669,5 @@ btnReset.addEventListener("click", (e) => {
   resetGame();
 });
 
+renderLifelines();
 boot();
