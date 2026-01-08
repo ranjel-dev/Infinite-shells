@@ -2,9 +2,9 @@
    LOCKED / APPROVED BASE
 ========================= */
 const SHOW_TITLE_CTA_OVERLAY = true;
-const LOADING_HOLD_MS = 5200;      // longer logo screen
-const FADE_MS = 550;              // matches CSS
-const POST_TITLE_LOCK_MS = 3000;  // prevent accidental start after title
+const LOADING_HOLD_MS = 5200;
+const FADE_MS = 550;
+const POST_TITLE_LOCK_MS = 3000;
 
 /* =========================
    ASSETS
@@ -32,11 +32,6 @@ const THEMES = [
   { key:"red"    }
 ];
 
-/* IMPORTANT:
-   Board background stays dark green in CSS.
-   We only swap shell art theme on resets (7 -> 3).
-*/
-
 /* =========================
    DOM
 ========================= */
@@ -45,7 +40,7 @@ const shellLayer    = document.getElementById("shellLayer");
 const pearl         = document.getElementById("pearl");
 const msg           = document.getElementById("msg");
 const scoreLine     = document.getElementById("scoreLine");
-const overlay        = document.getElementById("overlay");
+const overlay       = document.getElementById("overlay");
 const btnReset      = document.getElementById("btnReset");
 
 const loadingScreen = document.getElementById("loadingScreen");
@@ -89,11 +84,11 @@ let score = 0;
 let busy = false;
 let canGuess = false;
 
-/* ladder */
-let stageShells = 3;   // 3..7
-let stageWins = 0;     // wins within current stage
+/* ladder (internal terms ok) */
+let stageShells = 3;      // 3..7
+let stageWins = 0;        // wins within current stage
 let totalWinsThisRun = 0;
-let difficultyTier = 0; // bumps each time 7->3 reset happens (makes later 3-shell harder)
+let difficultyTier = 0;   // bumps each time 7->3 reset happens
 
 /* theme */
 let themeIndex = 0;
@@ -101,8 +96,8 @@ let themeIndex = 0;
 /* shells layout */
 let shellCount = 3;
 let shells = [];
-let slots = [];     // slots[shellId] = slotIndex
-let slotPerc = [];  // percents
+let slots = [];
+let slotPerc = [];
 let pearlUnderShellId = 0;
 
 /* =========================
@@ -143,7 +138,6 @@ function advanceStageIfReady(){
   stageWins = 0;
 
   if (stageShells === 7){
-    // reset to 3, theme changes, difficulty tier bumps
     stageShells = 3;
     themeIndex = (themeIndex + 1) % THEMES.length;
     difficultyTier++;
@@ -155,22 +149,16 @@ function advanceStageIfReady(){
 }
 
 /* =========================
-   DIFFICULTY (ramps speed + swaps)
-   - faster as wins increase
-   - faster with more shells
-   - faster each time we reset back to 3 (difficultyTier)
+   DIFFICULTY
 ========================= */
 function difficultyFromProgress(totalWins, shellsNow, tier){
-  // smooth ramp across first 40 wins
   const t = Math.min(1, totalWins / 40);
   const ease = t * t * (3 - 2 * t);
 
   const baseSwaps = 6 + (shellsNow - 3) * 2;
   const tierBumpSwaps = Math.min(8, tier * 1.0);
-
   const swaps = Math.round(baseSwaps + ease * 8 + tierBumpSwaps);
 
-  // duration goes DOWN as it gets harder
   let duration = Math.round(
     270 - ease * 120 - (shellsNow - 3) * 12 - tier * 8
   );
@@ -210,7 +198,6 @@ function buildShells(n){
     slots[shellId] = shellId;
     d.style.left = `${slotPerc[slots[shellId]]}%`;
 
-    // mobile reliable input
     d.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -244,7 +231,6 @@ async function animateSwap(a, b, duration){
   shells[a].classList.add("lift");
   shells[b].classList.add("lift");
 
-  // swap positions (pearl stays tied to shellId)
   const tmp = slots[a];
   slots[a] = slots[b];
   slots[b] = tmp;
@@ -281,7 +267,6 @@ async function shuffle(){
       else await sleep(rndInt(55));
     }
   } finally {
-    // HARD GUARANTEE: always ends in guessing state
     busy = false;
     canGuess = true;
     phase = "guessing";
@@ -292,7 +277,6 @@ async function shuffle(){
 async function startRound(){
   if (busy || canGuess) return;
 
-  // stage shell count
   if (shellCount !== stageShells){
     buildShells(stageShells);
   } else {
@@ -338,17 +322,34 @@ async function handleGuess(shellId){
 
     const result = advanceStageIfReady();
 
-    // message for stage changes
+    // in-game wording (no win/level/stage language)
     if (result.didReset){
-      setMessage("Stage cleared! Reset to 3 (harder).");
+      setMessage("Shift. Intensity rises.");
     } else if (result.changed){
-      setMessage(`Level up! Now ${stageShells} shells.`);
+      setMessage(`Shift. ${stageShells} shells.`);
     } else {
-      setMessage("Correct!");
+      setMessage("Locked.");
     }
 
     await sleep(850);
     hidePearl();
+
+    /* ✅ FIX #1 (THEME POP ISSUE)
+       If we hit the 7 -> 3 reset, the themeIndex has already advanced.
+       We rebuild shells NOW (while still in this post-correct pause),
+       so the next theme is already visible BEFORE the player taps.
+    */
+    if (result.didReset){
+      buildShells(stageShells); // stageShells is now 3
+      hidePearl();              // hard guarantee: pearl not visible between rounds
+    } else if (result.changed){
+      // for shell-count changes, pre-build too so the new layout is visible immediately
+      buildShells(stageShells);
+      hidePearl();
+    } else {
+      // no rebuild needed; keep current shell layout, just ensure art is correct
+      applyArt();
+    }
 
     busy = false;
     phase = "ready";
@@ -371,7 +372,6 @@ function onGlobalTap(){
   if (phase === "shuffling" || phase === "guessing") return;
 
   if (phase === "title"){
-    // show shells immediately (no blank pause), but lock starting for 3s
     hideScreen(titleScreen);
     hideGameUnderScreens(false);
 
@@ -423,7 +423,6 @@ async function boot(){
 
   if (titleCta) titleCta.style.display = SHOW_TITLE_CTA_OVERLAY ? "block" : "none";
 
-  // build game under screens but keep hidden until title tap
   buildShells(3);
   pearlUnderShellId = rndInt(shellCount);
   placePearlUnderShell(pearlUnderShellId);
