@@ -1,14 +1,12 @@
-/* styles.css */
 :root{
   --shellSize: clamp(78px, 11vw, 120px);
   --pearlSize: clamp(44px, 6vw, 64px);
 
-  /* theme-driven accent (set by JS) */
-  --themeAccent: #E8DCC2;
+  /* JS will set this per theme */
+  --accent: #e8e8ef;
 
-  /* pips pop color (universal) */
-  --pipOn: #ffd54a;
-  --pipOff: rgba(255,255,255,0.14);
+  /* universal pop that works on all themes */
+  --dotPop: #ffd54a;
 }
 
 body{
@@ -71,6 +69,85 @@ body{
 }
 @media (orientation:portrait){
   #rotateOverlay{ display:flex; }
+}
+
+/* =========================
+   LIFELINES (TOP RIGHT)
+========================= */
+#lifelines{
+  position:absolute;
+  top:12px;
+  right:12px;
+  display:flex;
+  gap:10px;
+  z-index:120;
+}
+
+.life{
+  width:84px;
+  height:62px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,0.10);
+  background:rgba(0,0,0,0.20);
+  backdrop-filter: blur(6px);
+  color:var(--accent);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  cursor:pointer;
+  padding:6px 8px;
+}
+
+.life:disabled{
+  opacity:0.35;
+  cursor:not-allowed;
+}
+
+.lifeIcon{
+  width:22px;
+  height:22px;
+  display:grid;
+  place-items:center;
+}
+
+.lifeIcon svg{
+  width:22px;
+  height:22px;
+}
+
+.lifeLabel{
+  font-size:12px;
+  letter-spacing:0.04em;
+}
+
+.dots{
+  display:flex;
+  gap:5px;
+  height:10px;
+  align-items:center;
+  justify-content:center;
+}
+
+.dot{
+  width:8px;
+  height:8px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.18);
+  background:rgba(0,0,0,0.15);
+}
+
+.dot.on{
+  background:var(--dotPop);
+  border-color:rgba(0,0,0,0.25);
+  box-shadow: 0 0 10px rgba(255,213,74,0.22);
+}
+
+/* Slow armed indicator */
+.life.armed{
+  outline:2px solid rgba(255,213,74,0.35);
+  box-shadow: 0 0 18px rgba(255,213,74,0.15);
 }
 
 /* =========================
@@ -147,85 +224,6 @@ body{
 }
 
 /* =========================
-   LIFELINES (TOP RIGHT)
-========================= */
-#lifelines{
-  position:absolute;
-  top:12px;
-  right:12px;
-  display:flex;
-  gap:10px;
-  z-index:80;
-  pointer-events:auto;
-}
-
-.lifeBtn{
-  width:44px;
-  height:44px;
-  border-radius:12px;
-  border:1px solid rgba(255,255,255,0.18);
-  background: rgba(15, 18, 25, 0.55);
-  backdrop-filter: blur(6px);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  position:relative;
-  cursor:pointer;
-  padding:0;
-}
-
-.lifeBtn:active{
-  transform: translateY(1px);
-}
-
-.lifeBtn.disabled{
-  opacity:0.45;
-  cursor:default;
-}
-
-.lifeBtn.armed{
-  box-shadow: 0 0 0 2px rgba(255, 213, 74, 0.22);
-}
-
-.lifeBtn .icon{
-  width:22px;
-  height:22px;
-  display:block;
-}
-
-.lifeBtn svg{
-  width:22px;
-  height:22px;
-  fill:none;
-  stroke: var(--themeAccent);
-  stroke-width:1.9;
-  stroke-linecap:round;
-  stroke-linejoin:round;
-  opacity:0.92;
-}
-
-.pips{
-  position:absolute;
-  left:50%;
-  bottom:-9px;
-  transform:translateX(-50%);
-  display:flex;
-  gap:4px;
-}
-
-.pipDot{
-  width:6px;
-  height:6px;
-  border-radius:999px;
-  background: var(--pipOff);
-  border:1px solid rgba(0,0,0,0.20);
-}
-
-.pipDot.on{
-  background: var(--pipOn);
-}
-
-/* =========================
    GAME ELEMENTS
 ========================= */
 #shellLayer{
@@ -234,12 +232,14 @@ body{
   z-index:10;
 }
 
-/* moved UP (was too low) */
 .shell{
   position:absolute;
   width:var(--shellSize);
   height:var(--shellSize);
-  bottom:34%;
+
+  /* moved up (was 26%) */
+  bottom:32%;
+
   transform:translateX(-50%);
   border-radius:18px;
   background-size:contain;
@@ -253,24 +253,28 @@ body{
   transform:translateX(-50%) translateY(-22px) scale(1.03);
 }
 
+/* 50/50 visuals */
 .shell.dim{
-  opacity:0.22;
-  filter: drop-shadow(0 6px 8px rgba(0,0,0,.25));
-  pointer-events:none;
+  opacity:0.25;
+  filter: drop-shadow(0 8px 10px rgba(0,0,0,.30));
 }
-
-.shell.lit{
+.shell.choice{
   opacity:1;
+  filter:
+    drop-shadow(0 0 12px rgba(255,213,74,0.22))
+    drop-shadow(0 10px 12px rgba(0,0,0,.35));
 }
 
 /* =========================
-   PEARL
+   PEARL (LUMINÉS-INSPIRED)
 ========================= */
 #pearl{
   position:absolute;
   width:var(--pearlSize);
   height:var(--pearlSize);
-  bottom:calc(34% + 18px);
+
+  bottom:calc(32% + 18px);
+
   transform:translateX(-50%);
   opacity:0;
   transition:opacity 140ms ease;
@@ -324,7 +328,8 @@ body{
   opacity:0;
   transition:opacity 160ms ease;
 
-  pointer-events:none; /* DO NOT BLOCK INPUT */
+  /* 🚨 DO NOT BLOCK INPUT */
+  pointer-events:none;
   z-index:50;
 }
 #overlay.flash{ opacity:1; }
