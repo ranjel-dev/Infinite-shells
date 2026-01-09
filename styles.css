@@ -1,13 +1,14 @@
+/* styles.css */
 :root{
   --shellSize: clamp(78px, 11vw, 120px);
   --pearlSize: clamp(44px, 6vw, 64px);
 
-  /* JS sets this per theme so lifelines match shell theme */
-  --accent: #e8e8ef;
+  /* theme-driven accent (set by JS) */
+  --themeAccent: #E8DCC2;
 
-  /* pips color: universal “pop” that works on all themes */
-  --pip: rgba(255, 213, 74, 0.95);
-  --pipOff: rgba(255,255,255,0.18);
+  /* pips pop color (universal) */
+  --pipOn: #ffd54a;
+  --pipOff: rgba(255,255,255,0.14);
 }
 
 body{
@@ -138,6 +139,7 @@ body{
   animation:ctaFade 2s ease-in-out infinite;
   pointer-events:none;
 }
+
 @keyframes ctaFade{
   0%{opacity:.35}
   50%{opacity:.85}
@@ -145,62 +147,82 @@ body{
 }
 
 /* =========================
-   LIFELINES (top-right)
+   LIFELINES (TOP RIGHT)
 ========================= */
 #lifelines{
   position:absolute;
-  top:14px;
-  right:14px;
-  z-index:80;
+  top:12px;
+  right:12px;
   display:flex;
   gap:10px;
-  align-items:flex-start;
-}
-
-.lifeBtn{
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap:6px;
-
-  width:48px;
-  height:56px;
-  border-radius:14px;
-  border:1px solid rgba(255,255,255,0.18);
-  background:rgba(0,0,0,0.22);
-  backdrop-filter: blur(6px);
-
-  cursor:pointer;
+  z-index:80;
   pointer-events:auto;
 }
 
-.lifeBtn:disabled{
+.lifeBtn{
+  width:44px;
+  height:44px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,0.18);
+  background: rgba(15, 18, 25, 0.55);
+  backdrop-filter: blur(6px);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+  cursor:pointer;
+  padding:0;
+}
+
+.lifeBtn:active{
+  transform: translateY(1px);
+}
+
+.lifeBtn.disabled{
   opacity:0.45;
   cursor:default;
 }
 
-.lifeIcon{
-  font-size:20px;
-  line-height:1;
-  color: var(--accent);
-  text-shadow: 0 2px 8px rgba(0,0,0,0.35);
+.lifeBtn.armed{
+  box-shadow: 0 0 0 2px rgba(255, 213, 74, 0.22);
 }
 
-.lifePips{
+.lifeBtn .icon{
+  width:22px;
+  height:22px;
+  display:block;
+}
+
+.lifeBtn svg{
+  width:22px;
+  height:22px;
+  fill:none;
+  stroke: var(--themeAccent);
+  stroke-width:1.9;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  opacity:0.92;
+}
+
+.pips{
+  position:absolute;
+  left:50%;
+  bottom:-9px;
+  transform:translateX(-50%);
   display:flex;
   gap:4px;
 }
 
-.lifePips .pip{
-  width:7px;
-  height:7px;
+.pipDot{
+  width:6px;
+  height:6px;
   border-radius:999px;
   background: var(--pipOff);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  border:1px solid rgba(0,0,0,0.20);
 }
-.lifePips .pip.on{
-  background: var(--pip);
+
+.pipDot.on{
+  background: var(--pipOn);
 }
 
 /* =========================
@@ -212,25 +234,33 @@ body{
   z-index:10;
 }
 
+/* moved UP (was too low) */
 .shell{
   position:absolute;
   width:var(--shellSize);
   height:var(--shellSize);
-
-  /* ⬆️ moved up */
-  bottom:33%;
-
+  bottom:34%;
   transform:translateX(-50%);
   border-radius:18px;
   background-size:contain;
   background-repeat:no-repeat;
   background-position:center;
-  transition:left 260ms ease, transform 260ms ease;
+  transition:left 260ms ease, transform 260ms ease, filter 200ms ease, opacity 200ms ease;
   filter: drop-shadow(0 10px 12px rgba(0,0,0,.35));
 }
 
 .shell.lift{
   transform:translateX(-50%) translateY(-22px) scale(1.03);
+}
+
+.shell.dim{
+  opacity:0.22;
+  filter: drop-shadow(0 6px 8px rgba(0,0,0,.25));
+  pointer-events:none;
+}
+
+.shell.lit{
+  opacity:1;
 }
 
 /* =========================
@@ -240,10 +270,7 @@ body{
   position:absolute;
   width:var(--pearlSize);
   height:var(--pearlSize);
-
-  /* match shell vertical shift */
-  bottom:calc(33% + 18px);
-
+  bottom:calc(34% + 18px);
   transform:translateX(-50%);
   opacity:0;
   transition:opacity 140ms ease;
@@ -264,9 +291,27 @@ body{
 }
 
 @keyframes pearlPulse{
-  0%{ transform:translateX(-50%) scale(0.98); }
-  60%{ transform:translateX(-50%) scale(1.06); }
-  100%{ transform:translateX(-50%) scale(1); }
+  0%{
+    transform:translateX(-50%) scale(0.98);
+    filter:
+      drop-shadow(0 0 6px rgba(180,255,220,0.18))
+      drop-shadow(0 0 16px rgba(90,255,190,0.10))
+      drop-shadow(0 10px 14px rgba(0,0,0,0.35));
+  }
+  60%{
+    transform:translateX(-50%) scale(1.06);
+    filter:
+      drop-shadow(0 0 14px rgba(180,255,220,0.28))
+      drop-shadow(0 0 30px rgba(90,255,190,0.18))
+      drop-shadow(0 10px 14px rgba(0,0,0,0.35));
+  }
+  100%{
+    transform:translateX(-50%) scale(1);
+    filter:
+      drop-shadow(0 0 10px rgba(180,255,220,0.22))
+      drop-shadow(0 0 22px rgba(90,255,190,0.14))
+      drop-shadow(0 10px 14px rgba(0,0,0,0.35));
+  }
 }
 
 /* =========================
@@ -279,9 +324,7 @@ body{
   opacity:0;
   transition:opacity 160ms ease;
 
-  /* 🚨 DO NOT BLOCK INPUT */
-  pointer-events:none;
-
+  pointer-events:none; /* DO NOT BLOCK INPUT */
   z-index:50;
 }
 #overlay.flash{ opacity:1; }
