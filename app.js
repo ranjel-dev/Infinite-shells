@@ -1,3 +1,4 @@
+/* app.js */
 /* =========================
    LOCKED / APPROVED BASE
 ========================= */
@@ -7,18 +8,12 @@ const FADE_MS = 550;
 const POST_TITLE_LOCK_MS = 3000;
 
 /* =========================
-   RESOLVE / VISIBILITY GUARANTEES
-   - prevents "skipping" the pearl / result
+   TIMING (Resolve Gate)
 ========================= */
-const MIN_REVEAL_MS  = 650;  // pearl visible after a guess
-const MIN_RESULT_MS  = 550;  // message holds briefly before ready
-const MIN_SHIELD_MS  = 650;  // shield save moment duration
-
-/* =========================
-   SLOW LIFELINE STRENGTH
-   "slower than half speed" => >= 2x duration + pauses
-========================= */
-const SLOW_MULT = 2.35; // strong slow (slower than half-speed)
+const WATCH_SHOW_MS = 900;        // pearl visible before shuffle
+const WATCH_HIDE_GAP_MS = 160;    // gap after pearl hides
+const REVEAL_HOLD_MS = 900;       // after a guess, pearl stays visible
+const POST_RESOLVE_BUFFER_MS = 300; // prevents accidental fast chaining
 
 /* =========================
    ASSETS
@@ -37,39 +32,39 @@ const ASSETS = {
 };
 
 const THEMES = [
-  { key:"ivory",  accent:"#EDE7D9" },
-  { key:"coral",  accent:"#FFB199" },
-  { key:"green",  accent:"#9CFFCE" },
-  { key:"gray",   accent:"#C9D3E6" },
-  { key:"purple", accent:"#E0B8FF" },
-  { key:"blue",   accent:"#B9D7FF" },
-  { key:"red",    accent:"#FFB6C6" }
+  { key:"ivory",  accent:"#E8DCC2" },
+  { key:"coral",  accent:"#FF6B6B" },
+  { key:"green",  accent:"#4EE29A" },
+  { key:"gray",   accent:"#BFC7D5" },
+  { key:"purple", accent:"#B57CFF" },
+  { key:"blue",   accent:"#6BB7FF" },
+  { key:"red",    accent:"#FF4A4A" }
 ];
 
 /* =========================
    DOM
 ========================= */
-const board          = document.getElementById("board");
-const shellLayer     = document.getElementById("shellLayer");
-const pearl          = document.getElementById("pearl");
-const msg            = document.getElementById("msg");
-const scoreLine      = document.getElementById("scoreLine");
-const overlay        = document.getElementById("overlay");
-const btnReset       = document.getElementById("btnReset");
+const board        = document.getElementById("board");
+const shellLayer   = document.getElementById("shellLayer");
+const pearl        = document.getElementById("pearl");
+const msg          = document.getElementById("msg");
+const scoreLine    = document.getElementById("scoreLine");
+const overlay      = document.getElementById("overlay");
+const btnReset     = document.getElementById("btnReset");
 
-const loadingScreen  = document.getElementById("loadingScreen");
-const titleScreen    = document.getElementById("titleScreen");
-const titleCta       = document.querySelector(".pressStart");
+const loadingScreen = document.getElementById("loadingScreen");
+const titleScreen   = document.getElementById("titleScreen");
+const titleCta      = document.querySelector(".pressStart");
 
-/* Lifelines */
+/* lifelines */
 const lifeSlow   = document.getElementById("lifeSlow");
 const lifeShield = document.getElementById("lifeShield");
-const life5050   = document.getElementById("life5050");
+const lifeFifty  = document.getElementById("lifeFifty");
 const lifeReveal = document.getElementById("lifeReveal");
 
 const pipsSlow   = document.getElementById("pipsSlow");
 const pipsShield = document.getElementById("pipsShield");
-const pips5050   = document.getElementById("pips5050");
+const pipsFifty  = document.getElementById("pipsFifty");
 const pipsReveal = document.getElementById("pipsReveal");
 
 /* =========================
@@ -96,53 +91,63 @@ function hideGameUnderScreens(shouldHide){
 
 function setMessage(t){ msg.textContent = t; }
 function refreshHUD(){ scoreLine.textContent = `Score: ${score}`; }
-function showPearl(){ pearl.style.opacity = "1"; }
-function hidePearl(){ pearl.style.opacity = "0"; }
 
-function pulsePearl(){
+function showPearl(pulse=false){
+  if (pulse){
+    pearl.classList.remove("revealPulse");
+    // force reflow so the animation can retrigger
+    void pearl.offsetWidth;
+    pearl.classList.add("revealPulse");
+  }
+  pearl.style.opacity = "1";
+}
+function hidePearl(){
+  pearl.style.opacity = "0";
   pearl.classList.remove("revealPulse");
-  void pearl.offsetWidth;
-  pearl.classList.add("revealPulse");
 }
 
 /* =========================
-   STATE
+   STATE MACHINE
 ========================= */
-let phase = "loading"; // loading -> title -> lockout -> ready -> shuffling -> guessing -> resolve
+/*
+  loading -> title -> lockout -> ready -> watch -> shuffling -> guessing -> resolve -> ready
+  (gameOver handled inside resolve if no shield)
+*/
+let phase = "loading";
 let lockTimer = null;
 
 let score = 0;
-let busy = false;
-let canGuess = false;
+let busy = false;     // guards against overlapping async
+let canGuess = false; // only true in guessing
 
-/* ladder */
-let stageShells = 3;      // 3..7
-let stageWins = 0;        // wins within current stage
-let totalWinsThisRun = 0; // total correct guesses this run
-let difficultyTier = 0;   // increments only on 7->3 reset
-
-/* theme */
+/* progression ladder 2-2-2-1-1 (internal terms only) */
+let stageShells = 3;       // 3..7
+let stageWins = 0;         // wins inside stage
+let totalWinsThisRun = 0;  // ramps shuffle
+let difficultyTier = 0;    // increases each 7->3 reset
 let themeIndex = 0;
 
-/* shells layout */
+/* shells */
 let shellCount = 3;
 let shells = [];
-let slots = [];     // slots[shellId] = slotIndex
-let slotPerc = [];  // percents
+let slots = [];
+let slotPerc = [];
 let pearlUnderShellId = 0;
 
-/* Lifelines (charges) */
-const MAX_CHARGES = 3;
-let charges = {
+/* lifelines (max 3 each) */
+const LIFE_MAX = 3;
+let life = {
   slow: 1,
   shield: 1,
   fifty: 0,
   reveal: 0
 };
 
-/* Lifelines (round flags) */
-let slowArmedNextShuffle = false;   // IMPORTANT: persists until the next shuffle starts
-let fiftyAppliedThisRound = false;
+let slowArmed = false;       // pressed before round start
+let slowActiveThisRound = false;
+
+let fiftyActive = false;
+let fiftyLitSet = new Set();
 
 /* =========================
    LAYOUT
@@ -158,7 +163,6 @@ function computeSlotPercents(n){
   const step = span / (n - 1);
   return Array.from({ length:n }, (_, i) => leftMargin + i * step);
 }
-
 function recomputeSlots(){
   slotPerc = computeSlotPercents(shellCount);
 }
@@ -182,6 +186,7 @@ function advanceStageIfReady(){
   stageWins = 0;
 
   if (stageShells === 7){
+    // reset cycle
     stageShells = 3;
     themeIndex = (themeIndex + 1) % THEMES.length;
     difficultyTier++;
@@ -193,7 +198,7 @@ function advanceStageIfReady(){
 }
 
 /* =========================
-   DIFFICULTY (ramps)
+   DIFFICULTY
 ========================= */
 function difficultyFromProgress(totalWins, shellsNow, tier){
   const t = Math.min(1, totalWins / 40);
@@ -203,9 +208,7 @@ function difficultyFromProgress(totalWins, shellsNow, tier){
   const tierBumpSwaps = Math.min(8, tier * 1.0);
   const swaps = Math.round(baseSwaps + ease * 8 + tierBumpSwaps);
 
-  let duration = Math.round(
-    270 - ease * 120 - (shellsNow - 3) * 12 - tier * 8
-  );
+  let duration = Math.round(270 - ease * 120 - (shellsNow - 3) * 12 - tier * 8);
   duration = Math.max(95, duration);
 
   const pauseChance = Math.min(0.30, 0.10 + ease * 0.10);
@@ -215,11 +218,11 @@ function difficultyFromProgress(totalWins, shellsNow, tier){
 }
 
 /* =========================
-   THEME / ART APPLY
+   THEME / ART
 ========================= */
 function applyThemeVars(){
   const th = THEMES[themeIndex % THEMES.length];
-  board.style.setProperty("--accent", th.accent);
+  board.style.setProperty("--themeAccent", th.accent);
 }
 
 function applyArt(){
@@ -228,61 +231,7 @@ function applyArt(){
   shells.forEach(s => s.style.backgroundImage = `url(${shellURL})`);
   pearl.style.backgroundImage = `url(${ASSETS.ball})`;
   applyThemeVars();
-}
-
-/* =========================
-   LIFELINE UI
-========================= */
-function clampCharges(){
-  charges.slow   = Math.max(0, Math.min(MAX_CHARGES, charges.slow));
-  charges.shield = Math.max(0, Math.min(MAX_CHARGES, charges.shield));
-  charges.fifty  = Math.max(0, Math.min(MAX_CHARGES, charges.fifty));
-  charges.reveal = Math.max(0, Math.min(MAX_CHARGES, charges.reveal));
-}
-
-function renderPips(el, onCount){
-  el.innerHTML = "";
-  for (let i = 0; i < MAX_CHARGES; i++){
-    const d = document.createElement("span");
-    d.className = "pip" + (i < onCount ? " on" : "");
-    el.appendChild(d);
-  }
-}
-
-function refreshLifelinesUI(){
-  clampCharges();
-
-  renderPips(pipsSlow, charges.slow);
-  renderPips(pipsShield, charges.shield);
-  renderPips(pips5050, charges.fifty);
-  renderPips(pipsReveal, charges.reveal);
-
-  const inReady  = (phase === "ready" && !busy);
-  const inGuess  = (phase === "guessing" && !busy);
-
-  // ✅ Slow can be armed while READY (before starting next round)
-  lifeSlow.disabled   = !(inReady && charges.slow > 0);
-
-  // shield is passive (no tap required)
-  lifeShield.disabled = true;
-
-  life5050.disabled   = !(inGuess && charges.fifty > 0 && !fiftyAppliedThisRound && shellCount >= 3);
-  lifeReveal.disabled = !(inGuess && charges.reveal > 0);
-}
-
-/* =========================
-   ONLY AWARD EXTRAS ON 7->3
-========================= */
-function awardResetBonusesOnly(){
-  charges.slow   = Math.min(MAX_CHARGES, charges.slow + 1);
-  charges.shield = Math.min(MAX_CHARGES, charges.shield + 1);
-
-  // alternating bonus: 50/50 then Reveal then 50/50...
-  if (difficultyTier % 2 === 1){
-    charges.fifty = Math.min(MAX_CHARGES, charges.fifty + 1);
-  } else {
-    charges.reveal = Math.min(MAX_CHARGES, charges.reveal + 1);
-  }
+  refreshLifelinesUI();
 }
 
 /* =========================
@@ -317,33 +266,12 @@ function buildShells(n){
 
   if (pearlUnderShellId >= shellCount) pearlUnderShellId = 0;
   placePearlUnderShell(pearlUnderShellId);
+  clearFiftyVisuals();
 }
 
 function placePearlUnderShell(shellId){
   const slotIndex = slots[shellId];
   pearl.style.left = `${slotPerc[slotIndex]}%`;
-}
-
-/* =========================
-   PREP NEXT ROUND VISUALS
-========================= */
-function prepareNextRoundVisuals(){
-  fiftyAppliedThisRound = false;
-
-  if (shellCount !== stageShells){
-    buildShells(stageShells);
-  } else {
-    applyArt();
-    recomputeSlots();
-    shells.forEach((_, shellId) => {
-      shells[shellId].style.left = `${slotPerc[slots[shellId]]}%`;
-      shells[shellId].style.opacity = "1";
-      shells[shellId].style.pointerEvents = "auto";
-    });
-  }
-
-  hidePearl();
-  refreshLifelinesUI();
 }
 
 /* =========================
@@ -374,27 +302,167 @@ async function animateSwap(a, b, duration){
   await sleep(Math.max(90, duration * 0.55));
 }
 
+function consumeLife(key){
+  if (life[key] <= 0) return false;
+  life[key] = Math.max(0, life[key] - 1);
+  refreshLifelinesUI();
+  return true;
+}
+
+function awardOnCycleResetOnly(){
+  // Only when 7 -> 3 happens
+  life.slow   = Math.min(LIFE_MAX, life.slow + 1);
+  life.shield = Math.min(LIFE_MAX, life.shield + 1);
+  life.fifty  = Math.min(LIFE_MAX, life.fifty + 1);
+  life.reveal = Math.min(LIFE_MAX, life.reveal + 1);
+  refreshLifelinesUI();
+}
+
+/* =========================
+   LIFELINES UI + LOGIC
+========================= */
+function renderPips(el, count){
+  el.innerHTML = "";
+  for (let i = 0; i < LIFE_MAX; i++){
+    const dot = document.createElement("span");
+    dot.className = "pipDot" + (i < count ? " on" : "");
+    el.appendChild(dot);
+  }
+}
+
+function refreshLifelinesUI(){
+  renderPips(pipsSlow,   life.slow);
+  renderPips(pipsShield, life.shield);
+  renderPips(pipsFifty,  life.fifty);
+  renderPips(pipsReveal, life.reveal);
+
+  // enable/disable buttons based on phase
+  const inReady = (phase === "ready");
+  const inGuess = (phase === "guessing");
+  const inPlayable = inReady || inGuess;
+
+  // Slow: only usable before round starts (ready). Can be "armed"
+  setBtnState(lifeSlow, inReady && life.slow > 0, slowArmed);
+
+  // Shield: passive, but still show if you have it
+  setBtnState(lifeShield, false, false);
+  lifeShield.classList.toggle("disabled", life.shield <= 0);
+
+  // 50/50 + Reveal: only during guessing
+  setBtnState(lifeFifty, inGuess && life.fifty > 0 && !fiftyActive, false);
+  setBtnState(lifeReveal, inGuess && life.reveal > 0, false);
+
+  // hide lifelines during loading/title screens visually via opacity
+  const shouldShow = (phase !== "loading" && phase !== "title");
+  document.getElementById("lifelines").style.opacity = shouldShow ? "1" : "0";
+  document.getElementById("lifelines").style.pointerEvents = shouldShow ? "auto" : "none";
+}
+
+function setBtnState(btn, enabled, armed){
+  btn.classList.toggle("disabled", !enabled);
+  btn.disabled = !enabled;
+  btn.classList.toggle("armed", !!armed);
+}
+
+function clearFiftyVisuals(){
+  fiftyActive = false;
+  fiftyLitSet.clear();
+  shells.forEach(s => {
+    s.classList.remove("dim");
+    s.classList.remove("lit");
+    s.style.pointerEvents = "";
+  });
+}
+
+function applyFiftyVisuals(){
+  shells.forEach((s, id) => {
+    const lit = fiftyLitSet.has(id);
+    s.classList.toggle("lit", lit);
+    s.classList.toggle("dim", !lit);
+    // enforce only 2 choices
+    s.style.pointerEvents = lit ? "auto" : "none";
+  });
+}
+
+lifeSlow.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (phase !== "ready") return;
+
+  if (life.slow <= 0) return;
+
+  // arm for next round
+  slowArmed = !slowArmed;
+  refreshLifelinesUI();
+  setMessage(slowArmed ? "Slow armed for next round." : "Slow disarmed.");
+}, { passive:false });
+
+lifeFifty.addEventListener("pointerdown", async (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (phase !== "guessing" || busy || !canGuess) return;
+  if (life.fifty <= 0) return;
+
+  if (!consumeLife("fifty")) return;
+
+  // pick correct + one decoy
+  const correct = pearlUnderShellId;
+  let decoy = rndInt(shellCount);
+  while (decoy === correct) decoy = rndInt(shellCount);
+
+  fiftyActive = true;
+  fiftyLitSet = new Set([correct, decoy]);
+  applyFiftyVisuals();
+  setMessage("50/50 active: choose between the two lit shells.");
+}, { passive:false });
+
+lifeReveal.addEventListener("pointerdown", async (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (phase !== "guessing" || busy || !canGuess) return;
+  if (life.reveal <= 0) return;
+
+  if (!consumeLife("reveal")) return;
+
+  // show the correct pearl briefly, then return to guessing
+  busy = true;
+  canGuess = false;
+
+  placePearlUnderShell(pearlUnderShellId);
+  showPearl(true);
+  setMessage("Reveal!");
+
+  await sleep(650);
+  hidePearl();
+  await sleep(120);
+
+  busy = false;
+  canGuess = true;
+  setMessage("Pick a shell.");
+}, { passive:false });
+
+/* =========================
+   SHUFFLE + START ROUND
+========================= */
 async function shuffle(){
   const base = difficultyFromProgress(totalWinsThisRun, shellCount, difficultyTier);
 
-  // ✅ Slow applies to the NEXT shuffle, whether armed long before or right before start
-  const useSlow = slowArmedNextShuffle;
-  slowArmedNextShuffle = false;
-
-  const mult = useSlow ? SLOW_MULT : 1.0;
+  // Slow must be meaningfully slower than half
+  // We apply a strong multiplier to swap duration + pauses.
+  const slowMult = slowActiveThisRound ? 0.35 : 1.0;
 
   const d = {
     swaps: base.swaps,
-    duration: Math.round(base.duration * mult),
+    duration: Math.round(base.duration / slowMult), // slower = larger duration
     pauseChance: base.pauseChance,
-    pauseExtraMax: Math.round(base.pauseExtraMax * mult)
+    pauseExtraMax: Math.round(base.pauseExtraMax / slowMult)
   };
 
   busy = true;
   canGuess = false;
   phase = "shuffling";
-  setMessage("Shuffling…");
   refreshLifelinesUI();
+  setMessage(slowActiveThisRound ? "Shuffling (Slowed)..." : "Shuffling…");
 
   try{
     for (let k = 0; k < d.swaps; k++){
@@ -411,192 +479,163 @@ async function shuffle(){
     busy = false;
     canGuess = true;
     phase = "guessing";
-    setMessage("Pick a shell.");
+    slowActiveThisRound = false; // ends with shuffle
     refreshLifelinesUI();
+    setMessage("Pick a shell.");
+  }
+}
+
+function prepareNextRoundLayout(){
+  // This is the fix for “theme/shells pop only after tap”.
+  // We ALWAYS pre-apply shell count + theme as soon as we enter ready.
+  if (shellCount !== stageShells){
+    buildShells(stageShells);
+  } else {
+    applyArt();
+    recomputeSlots();
+    shells.forEach((_, shellId) => {
+      shells[shellId].style.left = `${slotPerc[slots[shellId]]}%`;
+    });
+    clearFiftyVisuals();
   }
 }
 
 async function startRound(){
   if (busy || canGuess) return;
+  if (phase !== "ready") return;
 
-  prepareNextRoundVisuals();
+  phase = "watch";
+  refreshLifelinesUI();
+
+  // clear any old 50/50 restriction at round start
+  clearFiftyVisuals();
+
+  // apply layout already prepared, but ensure correct just in case
+  prepareNextRoundLayout();
+
+  // if slow was armed, consume NOW and activate for this round's shuffle
+  slowActiveThisRound = false;
+  if (slowArmed && life.slow > 0){
+    consumeLife("slow");
+    slowActiveThisRound = true;
+    slowArmed = false;
+  }
+  refreshLifelinesUI();
+
   pickPearlForRound();
 
-  setMessage("Watch the pearl…");
+  setMessage(`Watch the pearl…`);
   showPearl();
-  await sleep(900);
+  await sleep(WATCH_SHOW_MS);
   hidePearl();
-  await sleep(160);
+  await sleep(WATCH_HIDE_GAP_MS);
 
   await shuffle();
 }
 
 /* =========================
-   LIFELINES
+   RESOLVE GATE (NO SKIPPING)
 ========================= */
-function apply5050(){
-  if (phase !== "guessing" || busy) return;
-  if (charges.fifty <= 0) return;
-  if (shellCount < 3) return;
-  if (fiftyAppliedThisRound) return;
-
-  charges.fifty--;
-  fiftyAppliedThisRound = true;
-
-  const correctId = pearlUnderShellId;
-
-  let other = rndInt(shellCount);
-  while (other === correctId) other = rndInt(shellCount);
-
-  for (let i = 0; i < shellCount; i++){
-    if (i === correctId || i === other){
-      shells[i].style.opacity = "1";
-      shells[i].style.pointerEvents = "auto";
-    } else {
-      shells[i].style.opacity = "0.35";
-      shells[i].style.pointerEvents = "none";
-    }
-  }
-
-  setMessage("50/50 used.");
+async function resolveCorrect(){
+  // resolve gate: nothing can advance until this finishes
+  phase = "resolve";
+  busy = true;
+  canGuess = false;
   refreshLifelinesUI();
-}
 
-async function applyReveal(){
-  if (phase !== "guessing" || busy) return;
-  if (charges.reveal <= 0) return;
-
-  charges.reveal--;
+  // always reveal pearl (guaranteed)
   placePearlUnderShell(pearlUnderShellId);
-  showPearl();
-  pulsePearl();
+  showPearl(true);
 
-  setMessage("Revealed.");
-  refreshLifelinesUI();
+  await sleep(REVEAL_HOLD_MS);
 
-  await sleep(650);
+  hidePearl();
 
-  if (phase === "guessing"){
-    hidePearl();
-    setMessage("Pick a shell.");
+  // progression
+  score += 10;
+  refreshHUD();
+
+  totalWinsThisRun++;
+  stageWins++;
+
+  const step = advanceStageIfReady();
+
+  if (step.didReset){
+    awardOnCycleResetOnly(); // ONLY award here (7 -> 3)
+    setMessage("Cycle cleared.");
+  } else if (step.changed){
+    setMessage("Level up.");
+  } else {
+    setMessage("Correct.");
   }
-}
 
-// ✅ Arm Slow while READY (before starting next round)
-// It will apply to the NEXT shuffle no matter what.
-function armSlow(){
-  if (phase !== "ready" || busy) return;
-  if (charges.slow <= 0) return;
+  // IMPORTANT: pre-apply next layout/theme BEFORE player taps
+  prepareNextRoundLayout();
 
-  charges.slow--;
-  slowArmedNextShuffle = true;
+  await sleep(POST_RESOLVE_BUFFER_MS);
 
-  setMessage("Slow armed for next shuffle.");
+  busy = false;
+  phase = "ready";
   refreshLifelinesUI();
+  setMessage("Tap anywhere for next round");
 }
 
-/* Wire lifeline buttons */
-lifeSlow.addEventListener("pointerdown", (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  armSlow();
-}, { passive:false });
+async function resolveWrong(shellId){
+  phase = "resolve";
+  busy = true;
+  canGuess = false;
+  refreshLifelinesUI();
 
-life5050.addEventListener("pointerdown", (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  apply5050();
-}, { passive:false });
+  // reveal correct pearl (always)
+  placePearlUnderShell(pearlUnderShellId);
+  showPearl(true);
 
-lifeReveal.addEventListener("pointerdown", (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  applyReveal();
-}, { passive:false });
+  await sleep(REVEAL_HOLD_MS);
 
-/* =========================
-   GUESS
-========================= */
+  // shield check
+  if (life.shield > 0){
+    consumeLife("shield");
+
+    hidePearl();
+    clearFiftyVisuals();
+
+    setMessage("Shield saved you.");
+    await sleep(POST_RESOLVE_BUFFER_MS);
+
+    // do NOT advance stage on wrong guess
+    busy = false;
+    phase = "ready";
+    refreshLifelinesUI();
+    setMessage("Tap anywhere for next round");
+    return;
+  }
+
+  // no shield -> game over flow
+  hidePearl();
+  setMessage("Wrong — Game Over");
+  overlay.classList.add("flash");
+  await sleep(520);
+  overlay.classList.remove("flash");
+  await sleep(250);
+
+  resetGame();
+}
+
 async function handleGuess(shellId){
   if (phase !== "guessing") return;
   if (!canGuess || busy) return;
 
+  // if 50/50 is active, only lit shells can be clicked anyway (others have pointer-events none)
   canGuess = false;
   busy = true;
 
-  // ✅ lock into resolve so nothing can start a new round early
-  phase = "resolve";
-  refreshLifelinesUI();
-
-  // normalize shell clickability after 50/50
-  shells.forEach(s => { s.style.pointerEvents = "auto"; s.style.opacity = "1"; });
-
-  placePearlUnderShell(pearlUnderShellId);
-  showPearl();
-  pulsePearl();
-
+  // once player guesses, clear 50/50 visuals for future rounds
   const correct = (shellId === pearlUnderShellId);
+  clearFiftyVisuals();
 
-  // ✅ hard guarantee: pearl stays visible long enough to register
-  await sleep(MIN_REVEAL_MS);
-
-  if (correct){
-    score += 10;
-    refreshHUD();
-
-    totalWinsThisRun++;
-    stageWins++;
-
-    const result = advanceStageIfReady();
-
-    if (result.didReset){
-      awardResetBonusesOnly();
-      prepareNextRoundVisuals(); // apply theme/count immediately
-      setMessage("Stage cleared.");
-    } else if (result.changed){
-      prepareNextRoundVisuals(); // prebuild next shell count immediately
-      setMessage("Level up.");
-    } else {
-      setMessage("Correct!");
-    }
-
-    // ✅ hold result so it can’t “skip”
-    await sleep(MIN_RESULT_MS);
-
-    hidePearl();
-
-    busy = false;
-    phase = "ready";
-    setMessage("Tap anywhere for next round");
-    refreshLifelinesUI();
-
-  } else {
-    // Shield saves you (passive)
-    if (charges.shield > 0){
-      charges.shield--;
-      setMessage("Shield saved you.");
-      overlay.classList.add("flash");
-      await sleep(220);
-      overlay.classList.remove("flash");
-
-      await sleep(MIN_SHIELD_MS);
-
-      hidePearl();
-
-      busy = false;
-      phase = "ready";
-      setMessage("Tap anywhere for next round");
-      refreshLifelinesUI();
-      return;
-    }
-
-    setMessage("Wrong — Game Over");
-    overlay.classList.add("flash");
-    await sleep(520);
-    overlay.classList.remove("flash");
-    await sleep(250);
-    resetGame();
-  }
+  busy = false; // resolve functions manage their own busy gate
+  if (correct) await resolveCorrect();
+  else await resolveWrong(shellId);
 }
 
 /* =========================
@@ -604,22 +643,23 @@ async function handleGuess(shellId){
 ========================= */
 function onGlobalTap(){
   if (phase === "loading") return;
-  if (phase === "shuffling" || phase === "guessing" || phase === "resolve") return;
+  if (phase === "shuffling" || phase === "guessing" || phase === "resolve" || phase === "watch") return;
 
   if (phase === "title"){
     hideScreen(titleScreen);
     hideGameUnderScreens(false);
 
     phase = "lockout";
+    refreshLifelinesUI();
     setMessage("Get ready…");
 
     if (lockTimer) clearTimeout(lockTimer);
     lockTimer = setTimeout(() => {
       if (phase !== "lockout") return;
       phase = "ready";
-      prepareNextRoundVisuals();
-      setMessage("Tap anywhere to start");
+      prepareNextRoundLayout();   // pre-apply immediately
       refreshLifelinesUI();
+      setMessage("Tap anywhere to start");
     }, POST_TITLE_LOCK_MS);
 
     return;
@@ -636,10 +676,7 @@ document.addEventListener("pointerdown", onGlobalTap, { passive:true });
 /* =========================
    RESET / BOOT
 ========================= */
-function resetGame(){
-  busy = false;
-  canGuess = false;
-
+function fullResetState(){
   score = 0;
   totalWinsThisRun = 0;
 
@@ -649,12 +686,22 @@ function resetGame(){
   themeIndex = 0;
   difficultyTier = 0;
 
-  charges = { slow: 1, shield: 1, fifty: 0, reveal: 0 };
+  slowArmed = false;
+  slowActiveThisRound = false;
 
-  slowArmedNextShuffle = false;
-  fiftyAppliedThisRound = false;
+  clearFiftyVisuals();
+
+  life = { slow:1, shield:1, fifty:0, reveal:0 };
 
   refreshHUD();
+  refreshLifelinesUI();
+}
+
+function resetGame(){
+  busy = false;
+  canGuess = false;
+  phase = "loading";
+  fullResetState();
   hidePearl();
   boot();
 }
@@ -673,6 +720,7 @@ async function boot(){
   hideGameUnderScreens(true);
   setMessage("");
   phase = "loading";
+  refreshLifelinesUI();
 
   showScreen(loadingScreen);
   await sleep(FADE_MS);
