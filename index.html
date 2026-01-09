@@ -1,3 +1,4 @@
+<!-- index.html -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -47,26 +48,50 @@
       </div>
     </div>
 
-    <!-- LIFELINES (top-right) -->
+    <!-- LIFELINES HUD (top-right, inside board) -->
     <div id="lifelines" aria-label="Lifelines">
-      <button class="lifeBtn" id="lifeSlow" type="button" aria-label="Slow (Hourglass)">
-        <span class="lifeIcon" aria-hidden="true">⌛</span>
-        <span class="lifePips" id="pipsSlow" aria-hidden="true"></span>
+      <button class="lifeBtn" id="lifeSlow" type="button" aria-label="Slow">
+        <span class="icon" aria-hidden="true">
+          <!-- Hourglass -->
+          <svg viewBox="0 0 24 24">
+            <path d="M7 3h10M7 21h10M8 3c0 5 4 5 4 9s-4 4-4 9M16 3c0 5-4 5-4 9s4 4 4 9" />
+          </svg>
+        </span>
+        <span class="pips" id="pipsSlow" aria-hidden="true"></span>
       </button>
 
-      <button class="lifeBtn" id="lifeShield" type="button" aria-label="Shield (Shield Plate)">
-        <span class="lifeIcon" aria-hidden="true">🛡️</span>
-        <span class="lifePips" id="pipsShield" aria-hidden="true"></span>
+      <button class="lifeBtn" id="lifeShield" type="button" aria-label="Shield">
+        <span class="icon" aria-hidden="true">
+          <!-- Shield Plate -->
+          <svg viewBox="0 0 24 24">
+            <path d="M12 3l8 4v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z" />
+            <path d="M12 6v14" />
+          </svg>
+        </span>
+        <span class="pips" id="pipsShield" aria-hidden="true"></span>
       </button>
 
-      <button class="lifeBtn" id="life5050" type="button" aria-label="50/50 (Split Coin)">
-        <span class="lifeIcon" aria-hidden="true">◑</span>
-        <span class="lifePips" id="pips5050" aria-hidden="true"></span>
+      <button class="lifeBtn" id="lifeFifty" type="button" aria-label="50/50">
+        <span class="icon" aria-hidden="true">
+          <!-- Split coin -->
+          <svg viewBox="0 0 24 24">
+            <path d="M12 4a8 8 0 1 1 0 16" />
+            <path d="M12 4a8 8 0 0 0 0 16" />
+            <path d="M12 4v16" />
+          </svg>
+        </span>
+        <span class="pips" id="pipsFifty" aria-hidden="true"></span>
       </button>
 
-      <button class="lifeBtn" id="lifeReveal" type="button" aria-label="Reveal (Eye)">
-        <span class="lifeIcon" aria-hidden="true">👁</span>
-        <span class="lifePips" id="pipsReveal" aria-hidden="true"></span>
+      <button class="lifeBtn" id="lifeReveal" type="button" aria-label="Reveal">
+        <span class="icon" aria-hidden="true">
+          <!-- Eye -->
+          <svg viewBox="0 0 24 24">
+            <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" />
+            <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" />
+          </svg>
+        </span>
+        <span class="pips" id="pipsReveal" aria-hidden="true"></span>
       </button>
     </div>
 
