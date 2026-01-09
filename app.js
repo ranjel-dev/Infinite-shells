@@ -687,4 +687,4 @@ btnReset.addEventListener("click", (e) => {
   resetGame();
 });
 
-boot();
+boot(); 
