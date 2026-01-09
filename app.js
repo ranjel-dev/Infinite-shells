@@ -22,6 +22,7 @@ const ASSETS = {
   }
 };
 
+/* Theme accent colors (UI + lifelines) */
 const THEME_ACCENTS = {
   ivory:  "#EDE8DA",
   coral:  "#FF8B7A",
@@ -57,6 +58,7 @@ const loadingScreen = document.getElementById("loadingScreen");
 const titleScreen   = document.getElementById("titleScreen");
 const titleCta      = document.querySelector(".pressStart");
 
+/* Lifelines */
 const lifeSlow   = document.getElementById("lifeSlow");
 const lifeShield = document.getElementById("lifeShield");
 const lifeFifty  = document.getElementById("lifeFifty");
@@ -96,7 +98,7 @@ function showPearl(pulse=false){
   pearl.style.opacity = "1";
   if (pulse){
     pearl.classList.remove("revealPulse");
-    void pearl.offsetWidth;
+    void pearl.offsetWidth; // restart animation
     pearl.classList.add("revealPulse");
   }
 }
@@ -107,20 +109,28 @@ function hidePearl(){
 
 /* =========================
    STATE MACHINE
+   title -> lockout -> ready -> reveal -> shuffle -> guess -> resolve -> ready
 ========================= */
 let phase = "loading";
 let lockTimer = null;
+
+/* RESOLVE GATE:
+   When resolving, nothing else can advance until resolve finishes. */
 let resolveBusy = false;
 
+/* score */
 let score = 0;
 
-let stageShells = 3;
-let stageClears = 0;
-let totalClearsThisRun = 0;
-let difficultyTier = 0;
+/* progression ladder */
+let stageShells = 3;        // 3..7
+let stageClears = 0;        // clears within this stage
+let totalClearsThisRun = 0; // used for difficulty curve
+let difficultyTier = 0;     // increases each 7->3 reset
 
+/* theme */
 let themeIndex = 0;
 
+/* shell layout */
 let shellCount = 3;
 let shells = [];
 let slots = [];
@@ -129,13 +139,18 @@ let pearlUnderShellId = 0;
 
 /* lifelines */
 const LIFE_MAX = 3;
-let life = { slow:1, shield:1, fifty:0, reveal:0 };
+let life = {
+  slow:   1,   // starts with 1
+  shield: 1,   // starts with 1
+  fifty:  0,
+  reveal: 0
+};
 
-let slowArmed = false;
-let slowActive = false;
-
+let slowArmed = false;      // can arm before round
+let slowActive = false;     // active during shuffle
 let fiftyActive = false;
-let fiftyChoices = null;
+let fiftyChoices = null;    // Set<number>
+let shieldJustSaved = false;
 
 /* =========================
    LAYOUT
@@ -151,7 +166,10 @@ function computeSlotPercents(n){
   const step = span / (n - 1);
   return Array.from({ length:n }, (_, i) => leftMargin + i * step);
 }
-function recomputeSlots(){ slotPerc = computeSlotPercents(shellCount); }
+
+function recomputeSlots(){
+  slotPerc = computeSlotPercents(shellCount);
+}
 
 /* =========================
    LADDER: 2-2-2-1-1 (CLEARS)
@@ -174,7 +192,7 @@ function advanceStageIfReady(){
   if (stageShells === 7){
     stageShells = 3;
     themeIndex = (themeIndex + 1) % THEMES.length;
-    difficultyTier++; // IMPORTANT: tier increments on reset
+    difficultyTier++;
     return { changed:true, didReset:true };
   } else {
     stageShells++;
@@ -184,6 +202,10 @@ function advanceStageIfReady(){
 
 /* =========================
    DIFFICULTY
+   - ramps swaps + speed
+   - more shells = harder
+   - each 7->3 reset = harder (tier)
+   - Slow lifeline meaningfully slows beyond half
 ========================= */
 function difficultyFromProgress(totalClears, shellsNow, tier){
   const t = Math.min(1, totalClears / 40);
@@ -205,6 +227,8 @@ function difficultyFromProgress(totalClears, shellsNow, tier){
 }
 
 function applySlowToDifficulty(d){
+  /* "Actually slower than half" -> we go much slower than 2x time.
+     duration increases a lot + extra pauses increase. */
   return {
     swaps: d.swaps,
     duration: Math.round(d.duration * 2.6),
@@ -214,7 +238,7 @@ function applySlowToDifficulty(d){
 }
 
 /* =========================
-   THEME APPLY
+   THEME / ART APPLY
 ========================= */
 function applyTheme(){
   const th = THEMES[themeIndex % THEMES.length];
@@ -252,20 +276,12 @@ function syncLifelinesUI(){
   lifeSlow.classList.toggle("armed", slowArmed);
 }
 
-/* ✅ UPDATED RULE:
-   - Only award on 7->3 reset
-   - Reveal is delayed: NOT awarded on the first reset.
-   - (Meaning: Reveal begins awarding from the 2nd reset onward) */
-function awardExtrasOnResetOnly(currentTier){
+function awardExtrasOnResetOnly(){
+  // Only when 7->3 happens:
   life.slow   = Math.min(LIFE_MAX, life.slow + 1);
   life.shield = Math.min(LIFE_MAX, life.shield + 1);
   life.fifty  = Math.min(LIFE_MAX, life.fifty + 1);
-
-  // Delay Reveal: currentTier is 1 on the first reset, 2 on second, etc.
-  if (currentTier >= 2){
-    life.reveal = Math.min(LIFE_MAX, life.reveal + 1);
-  }
-
+  life.reveal = Math.min(LIFE_MAX, life.reveal + 1);
   syncLifelinesUI();
 }
 
@@ -302,7 +318,7 @@ function buildShells(n){
   if (pearlUnderShellId >= shellCount) pearlUnderShellId = 0;
   placePearlUnderShell(pearlUnderShellId);
 
-  clearFiftyState();
+  clearFiftyState(); // ensure clean visuals after rebuild
 }
 
 function placePearlUnderShell(shellId){
@@ -364,36 +380,18 @@ async function animateSwap(a, b, duration){
 }
 
 /* =========================
-   ROUND FLOW
+   ROUND FLOW (WITH RESOLVE GATE)
 ========================= */
-async function runShuffle(){
-  phase = "shuffle";
-
-  let d = difficultyFromProgress(totalClearsThisRun, shellCount, difficultyTier);
-  if (slowActive) d = applySlowToDifficulty(d);
-
-  setMessage(slowActive ? "Shuffling (SLOW)..." : "Shuffling…");
-
-  for (let k = 0; k < d.swaps; k++){
-    let a = rndInt(shellCount);
-    let b = rndInt(shellCount);
-    while (b === a) b = rndInt(shellCount);
-
-    await animateSwap(a, b, d.duration);
-
-    if (Math.random() < d.pauseChance) await sleep(rndInt(d.pauseExtraMax));
-    else await sleep(rndInt(55));
-  }
-
-  slowActive = false;
-}
-
 async function runRound(){
+  // READY -> REVEAL -> SHUFFLE -> GUESS
   if (resolveBusy) return;
 
+  // Make sure layout is already prepared BEFORE tap starts round.
   phase = "reveal";
   clearFiftyState();
+  shieldJustSaved = false;
 
+  // If slow was armed before round, activate it now for this shuffle
   slowActive = slowArmed;
   slowArmed = false;
   syncLifelinesUI();
@@ -412,13 +410,46 @@ async function runRound(){
   setMessage("Pick a shell.");
 }
 
+async function runShuffle(){
+  phase = "shuffle";
+
+  let d = difficultyFromProgress(totalClearsThisRun, shellCount, difficultyTier);
+  if (slowActive){
+    d = applySlowToDifficulty(d);
+  }
+
+  setMessage(slowActive ? "Shuffling (SLOW)..." : "Shuffling…");
+
+  // Allow slow to be activated mid-shuffle too:
+  for (let k = 0; k < d.swaps; k++){
+    let a = rndInt(shellCount);
+    let b = rndInt(shellCount);
+    while (b === a) b = rndInt(shellCount);
+
+    // if slow toggled on mid-shuffle, apply immediately from this swap onward
+    let localD = d;
+    if (slowActive && localD.duration !== d.duration){
+      // (not expected; d already slow)
+    }
+
+    await animateSwap(a, b, localD.duration);
+
+    const pauseRoll = Math.random();
+    if (pauseRoll < localD.pauseChance) await sleep(rndInt(localD.pauseExtraMax));
+    else await sleep(rndInt(55));
+  }
+
+  slowActive = false; // slow only lasts for this shuffle
+}
+
 /* =========================
-   RESOLVE GATE
+   RESOLVE GATE (NO SKIPS)
 ========================= */
 async function resolveSequence({ wasCorrect, usedShieldSave, stageEventText }){
   resolveBusy = true;
   phase = "resolve";
 
+  // Always reveal pearl (never skip)
   placePearlUnderShell(pearlUnderShellId);
   showPearl(true);
 
@@ -430,13 +461,19 @@ async function resolveSequence({ wasCorrect, usedShieldSave, stageEventText }){
     setMessage("Wrong — Game Over");
   }
 
+  // Hold long enough to see it (this is the key anti-skip)
   await sleep(950);
 
   hidePearl();
   await sleep(140);
 
-  if (wasCorrect || usedShieldSave){
+  // prepare next layout NOW (so it doesn't pop in on tap)
+  if (wasCorrect){
     prepareNextLayoutIfNeeded();
+    phase = "ready";
+    setMessage("Tap anywhere for next round");
+  } else if (usedShieldSave){
+    // No clear awarded. Still continue.
     phase = "ready";
     setMessage("Tap anywhere for next round");
   } else {
@@ -451,12 +488,14 @@ async function resolveSequence({ wasCorrect, usedShieldSave, stageEventText }){
 }
 
 /* =========================
-   PREP NEXT LAYOUT
+   PREP NEXT LAYOUT (FIXES POPPING)
 ========================= */
 function prepareNextLayoutIfNeeded(){
+  // ensure the next stage's shell count is already on screen before the player taps
   if (shellCount !== stageShells){
     buildShells(stageShells);
   } else {
+    // still re-apply theme + positions (defensive)
     applyTheme();
     recomputeSlots();
     shells.forEach((_, id) => {
@@ -472,28 +511,39 @@ async function handleGuess(shellId){
   if (resolveBusy) return;
   if (phase !== "guess") return;
 
+  // 50/50: only allow choosing lit shells
   if (fiftyActive && fiftyChoices && !fiftyChoices.has(shellId)) return;
 
-  phase = "resolve";
-
+  phase = "resolve"; // immediate gate
   const correct = (shellId === pearlUnderShellId);
 
+  // consume 50/50 visuals after pick (so the reveal is clean)
   clearFiftyState();
 
-  // Shield auto-save on wrong
+  // If wrong and shield available -> save
   if (!correct && life.shield > 0){
     life.shield--;
     syncLifelinesUI();
-    await resolveSequence({ wasCorrect:false, usedShieldSave:true, stageEventText:"" });
+
+    await resolveSequence({
+      wasCorrect: false,
+      usedShieldSave: true,
+      stageEventText: ""
+    });
     return;
   }
 
+  // Normal wrong -> game over
   if (!correct){
-    await resolveSequence({ wasCorrect:false, usedShieldSave:false, stageEventText:"" });
+    await resolveSequence({
+      wasCorrect: false,
+      usedShieldSave: false,
+      stageEventText: ""
+    });
     return;
   }
 
-  // Correct
+  // Correct -> award score + clear progression
   score += 10;
   refreshHUD();
 
@@ -505,29 +555,40 @@ async function handleGuess(shellId){
   let stageText = "Correct.";
 
   if (result.didReset){
-    // ✅ award only on reset, and reveal is delayed now
-    awardExtrasOnResetOnly(difficultyTier);
+    // Only award extras here (7 -> 3)
+    awardExtrasOnResetOnly();
 
+    // Prepare the next theme + layout before tap
     stageText = "Stage cleared. Theme advanced.";
   } else if (result.changed){
     stageText = `Level up. Now ${stageShells} shells.`;
   }
 
+  // If stage changed, we must apply theme immediately (no pop on tap)
   if (result.didReset){
+    // themeIndex changed already in advanceStageIfReady
+    // ensure theme applies NOW to lifelines + shells
     applyTheme();
   }
 
+  // Prepare next layout now so it’s already present before next tap
   prepareNextLayoutIfNeeded();
 
-  await resolveSequence({ wasCorrect:true, usedShieldSave:false, stageEventText:stageText });
+  await resolveSequence({
+    wasCorrect: true,
+    usedShieldSave: false,
+    stageEventText: stageText
+  });
 }
 
 /* =========================
-   LIFELINES
+   LIFELINES BEHAVIOR
 ========================= */
 lifeSlow.addEventListener("pointerdown", (e) => {
   e.preventDefault(); e.stopPropagation();
   if (life.slow <= 0) return;
+
+  // Can be used in READY (arms next round) OR during SHUFFLE (immediate)
   if (resolveBusy) return;
 
   if (phase === "ready"){
@@ -545,10 +606,14 @@ lifeSlow.addEventListener("pointerdown", (e) => {
     setMessage("Slow activated.");
     return;
   }
+
+  // In guess/reveal/title: do nothing (keeps it disciplined)
 });
 
 lifeShield.addEventListener("pointerdown", (e) => {
   e.preventDefault(); e.stopPropagation();
+  // Shield is passive; pressing doesn’t do anything by design.
+  // It triggers automatically on a wrong pick.
   if (life.shield <= 0) return;
   if (resolveBusy) return;
   setMessage("Shield is automatic on a wrong pick.");
@@ -562,6 +627,7 @@ lifeFifty.addEventListener("pointerdown", (e) => {
 
   life.fifty--;
 
+  // keep 2 lit: correct + one random other
   let other = rndInt(shellCount);
   while (other === pearlUnderShellId) other = rndInt(shellCount);
 
@@ -582,13 +648,16 @@ lifeReveal.addEventListener("pointerdown", async (e) => {
   life.reveal--;
   syncLifelinesUI();
 
+  // brief reveal
   placePearlUnderShell(pearlUnderShellId);
   showPearl(true);
   setMessage("Revealed.");
   await sleep(650);
   hidePearl();
 
+  // restore 50/50 visuals if active
   applyFiftyVisuals();
+
   setMessage("Pick a shell.");
 });
 
@@ -610,7 +679,10 @@ async function onGlobalTap(){
     if (lockTimer) clearTimeout(lockTimer);
     lockTimer = setTimeout(() => {
       if (phase !== "lockout") return;
+
+      // Prep initial layout before first tap-start as well
       prepareNextLayoutIfNeeded();
+
       phase = "ready";
       setMessage("Tap anywhere to start");
     }, POST_TITLE_LOCK_MS);
@@ -621,6 +693,7 @@ async function onGlobalTap(){
   if (phase === "lockout") return;
 
   if (phase === "ready"){
+    // Ensure layout is already correct before we start the round
     prepareNextLayoutIfNeeded();
     await runRound();
   }
@@ -687,4 +760,4 @@ btnReset.addEventListener("click", (e) => {
   resetGame();
 });
 
-boot(); 
+boot();
