@@ -6,7 +6,7 @@ const LOADING_HOLD_MS = 5200;
 const FADE_MS = 550;
 const POST_TITLE_LOCK_MS = 3000;
 
-/* resolve gate (prevents “skipping”) */
+/* resolve gate */
 const RESOLVE_MIN_SHOW_MS = 650;
 const RESOLVE_EXTRA_MS = 250;
 
@@ -56,8 +56,14 @@ const loadingScreen = document.getElementById("loadingScreen");
 const titleScreen   = document.getElementById("titleScreen");
 const titleCta      = document.querySelector(".pressStart");
 
+const menuScreen    = document.getElementById("menuScreen");
+const btnClassic    = document.getElementById("btnClassic");
+const btnHardcore   = document.getElementById("btnHardcore");
+const btnLeaderboards = document.getElementById("btnLeaderboards");
+const btnSettings   = document.getElementById("btnSettings");
+
 const lifeSlow   = document.getElementById("lifeSlow");
-const lifeShield = document.getElementById("lifeShield"); // static div
+const lifeShield = document.getElementById("lifeShield");
 const lifeFifty  = document.getElementById("lifeFifty");
 const lifeReveal = document.getElementById("lifeReveal");
 
@@ -104,7 +110,7 @@ function modalHide(){
 /* =========================
    STATE
 ========================= */
-let phase = "loading"; // loading -> title -> lockout -> ready -> shuffling -> guessing -> resolving -> gameover
+let phase = "loading"; // loading -> title -> menu -> lockout -> ready -> shuffling -> guessing -> resolving -> gameover
 let lockTimer = null;
 
 let score = 0;
@@ -122,7 +128,8 @@ let themeIndex = 0;
 
 /* shells */
 let shellCount = 3;
-let shells = [];
+let shellWraps = [];      // interactive wrappers
+let shellVisuals = [];    // inner art divs
 let slots = [];
 let slotPerc = [];
 let pearlUnderShellId = 0;
@@ -152,7 +159,6 @@ function computeSlotPercents(n){
   const step = span / (n - 1);
   return Array.from({ length:n }, (_, i) => leftMargin + i * step);
 }
-
 function recomputeSlots(){ slotPerc = computeSlotPercents(shellCount); }
 
 /* =========================
@@ -169,7 +175,6 @@ function winsNeededForStage(s){
 
 function awardResetCharges(){
   resetCount++;
-
   for (const k of ["slow","shield","fifty","reveal"]){
     const L = lifelines[k];
     if (!L.unlocked) continue;
@@ -212,20 +217,16 @@ function advanceStageIfReady(){
 }
 
 /* =========================
-   DIFFICULTY (SLOWED EARLY GAME)
+   DIFFICULTY (SLOWER START)
 ========================= */
 function difficultyFromProgress(totalWins, shellsNow, tier){
-  // slower start, still ramps later
   const t = Math.min(1, totalWins / 40);
   const ease = t * t * (3 - 2 * t);
 
-  // was 6 at start; now 4 at start
   const baseSwaps = 4 + (shellsNow - 3) * 2;
-
   const tierBumpSwaps = Math.min(8, tier * 1.0);
   const swaps = Math.round(baseSwaps + ease * 7 + tierBumpSwaps);
 
-  // was ~270 start; now ~330 start
   let duration = Math.round(
     330 - ease * 140 - (shellsNow - 3) * 10 - tier * 7
   );
@@ -268,7 +269,8 @@ function setLifelineStroke(color){
 function applyArt(){
   const th = THEMES[themeIndex % THEMES.length];
   const shellURL = ASSETS.shells[th.key];
-  shells.forEach(s => s.style.backgroundImage = `url(${shellURL})`);
+
+  shellVisuals.forEach(v => v.style.backgroundImage = `url(${shellURL})`);
   pearl.style.backgroundImage = `url(${ASSETS.ball})`;
 
   setLifelineStroke(themeToStroke(th.key));
@@ -305,31 +307,40 @@ function syncLifelineUI(){
 }
 
 /* =========================
-   BUILD SHELLS
+   BUILD SHELLS (WITH BIG HITBOX)
 ========================= */
 function buildShells(n){
   shellLayer.innerHTML = "";
-  shells = [];
+  shellWraps = [];
+  shellVisuals = [];
   slots = [];
 
   shellCount = n;
   recomputeSlots();
 
   for (let shellId = 0; shellId < shellCount; shellId++){
-    const d = document.createElement("div");
-    d.className = "shell";
-
+    const wrap = document.createElement("div");
+    wrap.className = "shellWrap";
+    wrap.style.left = `${slotPerc[shellId]}%`;
     slots[shellId] = shellId;
-    d.style.left = `${slotPerc[slots[shellId]]}%`;
 
-    d.addEventListener("pointerdown", (e) => {
+    const hit = document.createElement("div");
+    hit.className = "shellHit";
+    hit.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       e.stopPropagation();
       handleGuess(shellId);
     }, { passive:false });
 
-    shells.push(d);
-    shellLayer.appendChild(d);
+    const visual = document.createElement("div");
+    visual.className = "shell";
+
+    wrap.appendChild(hit);
+    wrap.appendChild(visual);
+
+    shellWraps.push(wrap);
+    shellVisuals.push(visual);
+    shellLayer.appendChild(wrap);
   }
 
   applyArt();
@@ -352,27 +363,27 @@ function pickPearlForRound(){
 }
 
 async function animateSwap(a, b, duration){
-  shells[a].classList.add("lift");
-  shells[b].classList.add("lift");
+  shellWraps[a].classList.add("lift");
+  shellWraps[b].classList.add("lift");
 
   const tmp = slots[a];
   slots[a] = slots[b];
   slots[b] = tmp;
 
-  shells[a].style.transitionDuration = `${duration}ms`;
-  shells[b].style.transitionDuration = `${duration}ms`;
+  shellWraps[a].style.transitionDuration = `${duration}ms`;
+  shellWraps[b].style.transitionDuration = `${duration}ms`;
 
-  shells[a].style.left = `${slotPerc[slots[a]]}%`;
-  shells[b].style.left = `${slotPerc[slots[b]]}%`;
+  shellWraps[a].style.left = `${slotPerc[slots[a]]}%`;
+  shellWraps[b].style.left = `${slotPerc[slots[b]]}%`;
 
   await sleep(Math.max(90, duration * 0.55));
-  shells[a].classList.remove("lift");
-  shells[b].classList.remove("lift");
+  shellWraps[a].classList.remove("lift");
+  shellWraps[b].classList.remove("lift");
   await sleep(Math.max(90, duration * 0.55));
 }
 
 function clearFiftyVisual(){
-  shells.forEach(s => { s.classList.remove("dim"); s.classList.remove("hint"); });
+  shellWraps.forEach(w => { w.classList.remove("dim"); w.classList.remove("hint"); });
   lifelines.fifty.active = false;
 }
 
@@ -382,8 +393,8 @@ function syncStageVisualsNow(){
   } else {
     applyArt();
     recomputeSlots();
-    shells.forEach((_, shellId) => {
-      shells[shellId].style.left = `${slotPerc[slots[shellId]]}%`;
+    shellWraps.forEach((_, shellId) => {
+      shellWraps[shellId].style.left = `${slotPerc[slots[shellId]]}%`;
     });
   }
 }
@@ -466,10 +477,10 @@ function useFifty(){
   let other = rndInt(shellCount);
   while (other === correct) other = rndInt(shellCount);
 
-  shells.forEach((s, i) => {
-    s.classList.remove("dim","hint");
-    if (i === correct || i === other) s.classList.add("hint");
-    else s.classList.add("dim");
+  shellWraps.forEach((w, i) => {
+    w.classList.remove("dim","hint");
+    if (i === correct || i === other) w.classList.add("hint");
+    else w.classList.add("dim");
   });
 
   setMessage("50/50 active.");
@@ -526,7 +537,7 @@ async function handleGuess(shellId){
     await sleep(RESOLVE_MIN_SHOW_MS);
     hidePearl();
 
-    // apply visuals immediately so nothing “pops in” after tap
+    // apply visuals immediately so nothing pops after tap
     syncStageVisualsNow();
 
     await sleep(RESOLVE_EXTRA_MS);
@@ -575,7 +586,7 @@ async function handleGuess(shellId){
 }
 
 /* =========================
-   TAP ANYWHERE
+   GLOBAL TAP
 ========================= */
 function onGlobalTap(){
   if (busy) return;
@@ -583,21 +594,18 @@ function onGlobalTap(){
   if (phase === "loading") return;
   if (phase === "shuffling" || phase === "guessing" || phase === "resolving" || phase === "gameover") return;
 
+  // Title tap goes to MENU now
   if (phase === "title"){
     hideScreen(titleScreen);
-    hideGameUnderScreens(false);
-
-    phase = "lockout";
-    setMessage("Get ready…");
-
-    if (lockTimer) clearTimeout(lockTimer);
-    lockTimer = setTimeout(() => {
-      if (phase !== "lockout") return;
-      phase = "ready";
-      setMessage("Tap anywhere to start");
-    }, POST_TITLE_LOCK_MS);
+    showScreen(menuScreen);
+    hideGameUnderScreens(true);
+    phase = "menu";
+    setMessage("");
     return;
   }
+
+  // In menu, taps do nothing (must press Classic button)
+  if (phase === "menu") return;
 
   if (phase === "lockout") return;
 
@@ -606,6 +614,33 @@ function onGlobalTap(){
   }
 }
 document.addEventListener("pointerdown", onGlobalTap, { passive:true });
+
+/* =========================
+   MENU BUTTONS
+========================= */
+function enterClassicMode(){
+  // show game under UI and enter lockout -> ready
+  hideScreen(menuScreen);
+  hideGameUnderScreens(false);
+
+  phase = "lockout";
+  setMessage("Get ready…");
+
+  if (lockTimer) clearTimeout(lockTimer);
+  lockTimer = setTimeout(() => {
+    if (phase !== "lockout") return;
+    phase = "ready";
+    setMessage("Tap anywhere to start");
+  }, POST_TITLE_LOCK_MS);
+}
+
+btnClassic.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (phase !== "menu") return;
+  enterClassicMode();
+});
+
+// other buttons intentionally inactive for now (disabled in HTML)
 
 /* =========================
    RESET / BOOT
@@ -644,6 +679,7 @@ async function boot(){
 
   if (titleCta) titleCta.style.display = SHOW_TITLE_CTA_OVERLAY ? "block" : "none";
 
+  // build game under screens but keep hidden until Classic
   buildShells(3);
   pearlUnderShellId = rndInt(shellCount);
   placePearlUnderShell(pearlUnderShellId);
@@ -661,6 +697,10 @@ async function boot(){
   showScreen(titleScreen);
   await sleep(FADE_MS);
 
+  // ensure menu is hidden at boot
+  menuScreen.classList.remove("show");
+  menuScreen.classList.remove("fadeOut");
+
   phase = "title";
 }
 
@@ -670,6 +710,10 @@ function fullResetToTitle(){
   setMessage("");
   phase = "title";
   showScreen(titleScreen);
+
+  // hide menu if it was up
+  menuScreen.classList.remove("show");
+  menuScreen.classList.remove("fadeOut");
 }
 
 btnReset.addEventListener("click", (e) => {
