@@ -12,7 +12,7 @@
     <div id="scoreLine">Score: 0</div>
     <div id="msg"></div>
     <div id="controls">
-      <button id="btnReset" type="button">Reset</button>
+      <button id="btnReset">Reset</button>
     </div>
   </div>
 
@@ -50,102 +50,23 @@
     <!-- MAIN MENU SCREEN -->
     <div id="menuScreen" class="screen">
       <div class="screenBg"></div>
-      <div class="screenContent">
-        <div class="menuWrap">
-          <div class="menuTitle">INFINITE SHELLS</div>
-
-          <div class="menuButtons" role="menu" aria-label="Main Menu">
-            <button id="btnClassic" class="menuBtn primary" type="button">Classic Mode</button>
-            <button id="btnHardcore" class="menuBtn disabled" type="button" disabled>Hardcore Mode</button>
-            <button id="btnLeaderboards" class="menuBtn disabled" type="button" disabled>Leaderboards</button>
-            <button id="btnSettings" class="menuBtn disabled" type="button" disabled>Settings</button>
-          </div>
-
-          <div class="menuNote">Only Classic Mode is active right now.</div>
+      <div class="screenContent menuContent">
+        <div class="menuPanel">
+          <button id="btnClassic" class="menuBtn">Classic Mode</button>
+          <button id="btnHardcore" class="menuBtn disabled" disabled>Hardcore Mode</button>
+          <button id="btnLeaders" class="menuBtn disabled" disabled>Leaderboards</button>
+          <button id="btnSettings" class="menuBtn disabled" disabled>Settings</button>
         </div>
       </div>
-    </div>
-
-    <!-- LIFELINES (TOP RIGHT) -->
-    <div id="lifelines" aria-label="Lifelines">
-
-      <!-- Slow -->
-      <button id="lifeSlow" class="life" type="button" aria-label="Slow (Hourglass)">
-        <div class="ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24">
-            <path d="M7 3h10"/>
-            <path d="M7 21h10"/>
-            <path d="M8 3c0 6 8 6 8 12s-8 6-8 12"/>
-          </svg>
-        </div>
-        <div class="pips" aria-label="Slow charges">
-          <span class="pip"></span><span class="pip"></span><span class="pip"></span>
-        </div>
-      </button>
-
-      <!-- Shield (always-on, not clickable) -->
-      <div id="lifeShield" class="life static" role="img" aria-label="Shield (Shield Plate)">
-        <div class="ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24">
-            <path d="M12 3l7 4v6c0 5-3.5 8.5-7 9-3.5-.5-7-4-7-9V7l7-4z"/>
-            <path d="M12 6v14"/>
-          </svg>
-        </div>
-        <div class="pips" aria-label="Shield charges">
-          <span class="pip"></span><span class="pip"></span><span class="pip"></span>
-        </div>
-      </div>
-
-      <!-- 50/50 -->
-      <button id="lifeFifty" class="life locked" type="button" aria-label="50/50 (Split Coin)">
-        <div class="ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="8"/>
-            <path d="M12 4v16"/>
-            <path d="M9 8h2"/>
-            <path d="M13 16h2"/>
-          </svg>
-        </div>
-        <div class="pips" aria-label="50/50 charges">
-          <span class="pip"></span><span class="pip"></span><span class="pip"></span>
-        </div>
-      </button>
-
-      <!-- Reveal -->
-      <button id="lifeReveal" class="life locked" type="button" aria-label="Reveal (Eye)">
-        <div class="ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24">
-            <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/>
-            <circle cx="12" cy="12" r="2.5"/>
-          </svg>
-        </div>
-        <div class="pips" aria-label="Reveal charges">
-          <span class="pip"></span><span class="pip"></span><span class="pip"></span>
-        </div>
-      </button>
-
     </div>
 
     <!-- GAME -->
     <div id="overlay"></div>
     <div id="recordText">NEW RECORD!</div>
 
-    <!-- Pearl is rendered behind shells now -->
+    <!-- Pearl behind shells always -->
     <div id="pearl"></div>
     <div id="shellLayer"></div>
-
-    <!-- RETRY / MENU MODAL -->
-    <div id="retryModal" aria-hidden="true">
-      <div class="backdrop"></div>
-      <div class="panel" role="dialog" aria-modal="true" aria-label="Game Over Menu">
-        <div class="title">Game Over</div>
-        <div class="desc">Retry this run, or return to the title screen?</div>
-        <div class="actions">
-          <button id="btnToTitle" class="modalBtn" type="button">Start Menu</button>
-          <button id="btnRetry" class="modalBtn primary" type="button">Retry</button>
-        </div>
-      </div>
-    </div>
 
   </div>
 
