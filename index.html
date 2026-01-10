@@ -12,7 +12,7 @@
     <div id="scoreLine">Score: 0</div>
     <div id="msg"></div>
     <div id="controls">
-      <button id="btnReset">Reset</button>
+      <button id="btnReset" type="button">Reset</button>
     </div>
   </div>
 
@@ -49,10 +49,10 @@
 
     <!-- LIFELINES (TOP RIGHT) -->
     <div id="lifelines" aria-label="Lifelines">
+
       <!-- Slow (Hourglass) -->
       <button id="lifeSlow" class="life" type="button" aria-label="Slow (Hourglass)">
         <div class="ico" aria-hidden="true">
-          <!-- Hourglass -->
           <svg viewBox="0 0 24 24">
             <path d="M7 3h10"/>
             <path d="M7 21h10"/>
@@ -60,32 +60,26 @@
           </svg>
         </div>
         <div class="pips" aria-label="Slow charges">
-          <span class="pip on"></span>
-          <span class="pip"></span>
-          <span class="pip"></span>
+          <span class="pip"></span><span class="pip"></span><span class="pip"></span>
         </div>
       </button>
 
-      <!-- Shield (Shield Plate) -->
-      <button id="lifeShield" class="life static" type="button" aria-label="Shield (Shield Plate)">
+      <!-- Shield (always-on, not clickable) -->
+      <div id="lifeShield" class="life static" role="img" aria-label="Shield (Shield Plate)">
         <div class="ico" aria-hidden="true">
-          <!-- Shield plate -->
           <svg viewBox="0 0 24 24">
             <path d="M12 3l7 4v6c0 5-3.5 8.5-7 9-3.5-.5-7-4-7-9V7l7-4z"/>
             <path d="M12 6v14"/>
           </svg>
         </div>
         <div class="pips" aria-label="Shield charges">
-          <span class="pip on"></span>
-          <span class="pip"></span>
-          <span class="pip"></span>
+          <span class="pip"></span><span class="pip"></span><span class="pip"></span>
         </div>
-      </button>
+      </div>
 
       <!-- 50/50 (Split Coin) -->
       <button id="lifeFifty" class="life locked" type="button" aria-label="50/50 (Split Coin)">
         <div class="ico" aria-hidden="true">
-          <!-- Split coin -->
           <svg viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="8"/>
             <path d="M12 4v16"/>
@@ -94,27 +88,23 @@
           </svg>
         </div>
         <div class="pips" aria-label="50/50 charges">
-          <span class="pip"></span>
-          <span class="pip"></span>
-          <span class="pip"></span>
+          <span class="pip"></span><span class="pip"></span><span class="pip"></span>
         </div>
       </button>
 
       <!-- Reveal (Eye) -->
       <button id="lifeReveal" class="life locked" type="button" aria-label="Reveal (Eye)">
         <div class="ico" aria-hidden="true">
-          <!-- Eye -->
           <svg viewBox="0 0 24 24">
             <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/>
             <circle cx="12" cy="12" r="2.5"/>
           </svg>
         </div>
         <div class="pips" aria-label="Reveal charges">
-          <span class="pip"></span>
-          <span class="pip"></span>
-          <span class="pip"></span>
+          <span class="pip"></span><span class="pip"></span><span class="pip"></span>
         </div>
       </button>
+
     </div>
 
     <!-- GAME -->
