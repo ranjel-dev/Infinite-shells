@@ -2,11 +2,15 @@
   --shellSize: clamp(78px, 11vw, 120px);
   --pearlSize: clamp(44px, 6vw, 64px);
 
-  /* JS will set this per theme */
-  --accent: #e8e8ef;
+  /* Theme-driven tint (set by JS) */
+  --themeColor: #f3efe2;
 
-  /* universal pop that works on all themes */
-  --dotPop: #ffd54a;
+  /* Universal “pop” dot color (works on all themes) */
+  --ammoDot: #3DF2D3;
+
+  /* Lifeline UI */
+  --lifeBg: rgba(10,12,18,.55);
+  --lifeBorder: rgba(255,255,255,.10);
 }
 
 body{
@@ -69,85 +73,6 @@ body{
 }
 @media (orientation:portrait){
   #rotateOverlay{ display:flex; }
-}
-
-/* =========================
-   LIFELINES (TOP RIGHT)
-========================= */
-#lifelines{
-  position:absolute;
-  top:12px;
-  right:12px;
-  display:flex;
-  gap:10px;
-  z-index:120;
-}
-
-.life{
-  width:84px;
-  height:62px;
-  border-radius:14px;
-  border:1px solid rgba(255,255,255,0.10);
-  background:rgba(0,0,0,0.20);
-  backdrop-filter: blur(6px);
-  color:var(--accent);
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap:4px;
-  cursor:pointer;
-  padding:6px 8px;
-}
-
-.life:disabled{
-  opacity:0.35;
-  cursor:not-allowed;
-}
-
-.lifeIcon{
-  width:22px;
-  height:22px;
-  display:grid;
-  place-items:center;
-}
-
-.lifeIcon svg{
-  width:22px;
-  height:22px;
-}
-
-.lifeLabel{
-  font-size:12px;
-  letter-spacing:0.04em;
-}
-
-.dots{
-  display:flex;
-  gap:5px;
-  height:10px;
-  align-items:center;
-  justify-content:center;
-}
-
-.dot{
-  width:8px;
-  height:8px;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,0.18);
-  background:rgba(0,0,0,0.15);
-}
-
-.dot.on{
-  background:var(--dotPop);
-  border-color:rgba(0,0,0,0.25);
-  box-shadow: 0 0 10px rgba(255,213,74,0.22);
-}
-
-/* Slow armed indicator */
-.life.armed{
-  outline:2px solid rgba(255,213,74,0.35);
-  box-shadow: 0 0 18px rgba(255,213,74,0.15);
 }
 
 /* =========================
@@ -224,6 +149,71 @@ body{
 }
 
 /* =========================
+   LIFELINES (TOP RIGHT)
+========================= */
+#lifelines{
+  position:absolute;
+  top:14px;
+  right:14px;
+  display:flex;
+  gap:10px;
+  z-index:120;
+  pointer-events:auto;
+}
+
+.life{
+  width:58px;
+  height:58px;
+  border-radius:14px;
+  border:1px solid var(--lifeBorder);
+  background:var(--lifeBg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  cursor:pointer;
+  padding:0;
+  color:var(--themeColor);
+}
+
+.life:active{
+  transform: translateY(1px);
+}
+
+.life[disabled]{
+  opacity:.38;
+  cursor:not-allowed;
+}
+
+.life .icon{
+  width:26px;
+  height:26px;
+  display:block;
+}
+
+/* 3 ammo dots */
+.life .dots{
+  display:flex;
+  gap:5px;
+  height:10px;
+  align-items:center;
+}
+.dot{
+  width:7px;
+  height:7px;
+  border-radius:99px;
+  background:rgba(255,255,255,.14);
+  box-shadow: 0 0 0 rgba(0,0,0,0);
+}
+.dot.on{
+  background:var(--ammoDot);
+  box-shadow: 0 0 10px rgba(61,242,211,.35);
+}
+
+/* =========================
    GAME ELEMENTS
 ========================= */
 #shellLayer{
@@ -237,32 +227,20 @@ body{
   width:var(--shellSize);
   height:var(--shellSize);
 
-  /* moved up (was 26%) */
-  bottom:32%;
+  /* moved UP a bit (was 26%) */
+  bottom:31%;
 
   transform:translateX(-50%);
   border-radius:18px;
   background-size:contain;
   background-repeat:no-repeat;
   background-position:center;
-  transition:left 260ms ease, transform 260ms ease, filter 200ms ease, opacity 200ms ease;
+  transition:left 260ms ease, transform 260ms ease;
   filter: drop-shadow(0 10px 12px rgba(0,0,0,.35));
 }
 
 .shell.lift{
   transform:translateX(-50%) translateY(-22px) scale(1.03);
-}
-
-/* 50/50 visuals */
-.shell.dim{
-  opacity:0.25;
-  filter: drop-shadow(0 8px 10px rgba(0,0,0,.30));
-}
-.shell.choice{
-  opacity:1;
-  filter:
-    drop-shadow(0 0 12px rgba(255,213,74,0.22))
-    drop-shadow(0 10px 12px rgba(0,0,0,.35));
 }
 
 /* =========================
@@ -272,9 +250,7 @@ body{
   position:absolute;
   width:var(--pearlSize);
   height:var(--pearlSize);
-
-  bottom:calc(32% + 18px);
-
+  bottom:calc(31% + 18px);
   transform:translateX(-50%);
   opacity:0;
   transition:opacity 140ms ease;
@@ -290,34 +266,6 @@ body{
     drop-shadow(0 10px 14px rgba(0,0,0,0.35));
 }
 
-#pearl.revealPulse{
-  animation: pearlPulse 260ms ease-out 1;
-}
-
-@keyframes pearlPulse{
-  0%{
-    transform:translateX(-50%) scale(0.98);
-    filter:
-      drop-shadow(0 0 6px rgba(180,255,220,0.18))
-      drop-shadow(0 0 16px rgba(90,255,190,0.10))
-      drop-shadow(0 10px 14px rgba(0,0,0,0.35));
-  }
-  60%{
-    transform:translateX(-50%) scale(1.06);
-    filter:
-      drop-shadow(0 0 14px rgba(180,255,220,0.28))
-      drop-shadow(0 0 30px rgba(90,255,190,0.18))
-      drop-shadow(0 10px 14px rgba(0,0,0,0.35));
-  }
-  100%{
-    transform:translateX(-50%) scale(1);
-    filter:
-      drop-shadow(0 0 10px rgba(180,255,220,0.22))
-      drop-shadow(0 0 22px rgba(90,255,190,0.14))
-      drop-shadow(0 10px 14px rgba(0,0,0,0.35));
-  }
-}
-
 /* =========================
    OVERLAY / RECORD
 ========================= */
@@ -328,7 +276,6 @@ body{
   opacity:0;
   transition:opacity 160ms ease;
 
-  /* 🚨 DO NOT BLOCK INPUT */
   pointer-events:none;
   z-index:50;
 }
@@ -347,3 +294,20 @@ body{
   z-index:60;
 }
 #recordText.show{ opacity:1; }
+
+/* 50/50 highlighting */
+.shell.dim{
+  opacity:.25;
+  filter: grayscale(.2) drop-shadow(0 10px 12px rgba(0,0,0,.25));
+}
+.shell.focus{
+  opacity:1;
+  filter: drop-shadow(0 10px 12px rgba(0,0,0,.40)) drop-shadow(0 0 10px rgba(61,242,211,.10));
+}
+
+/* reveal pulse */
+.shell.revealHint{
+  filter:
+    drop-shadow(0 10px 12px rgba(0,0,0,.40))
+    drop-shadow(0 0 14px rgba(61,242,211,.25));
+}
