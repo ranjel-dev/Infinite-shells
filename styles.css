@@ -4,10 +4,9 @@
 
   /* Lifelines */
   --lifeSize: clamp(64px, 9vw, 88px);
-  --lifeRadius: 18px;
 
-  /* Shell hitbox */
-  --hitW: calc(var(--shellSize) * 1.25);
+  /* Shell hitbox (WIDER now) */
+  --hitW: calc(var(--shellSize) * 1.55);
   --hitH: calc(var(--shellSize) * 1.55);
 
   /* Neutral pip color that pops across themes */
@@ -56,7 +55,6 @@ body{
   position:relative;
   overflow:hidden;
 
-  /* LOCKED BACKGROUND */
   background:#0F2F1F;
 
   user-select:none;
@@ -88,10 +86,7 @@ body{
   display:none;
   z-index:1200;
 }
-.screenBg{
-  position:absolute;
-  inset:0;
-}
+.screenBg{ position:absolute; inset:0; }
 .screenContent{
   position:absolute;
   inset:0;
@@ -256,15 +251,8 @@ body{
 }
 
 .life.static{ cursor:default; }
-
-.life.locked{
-  opacity:0.45;
-  filter:saturate(0.85);
-}
-.life.disabled{
-  opacity:0.55;
-  cursor:default;
-}
+.life.locked{ opacity:0.45; filter:saturate(0.85); }
+.life.disabled{ opacity:0.55; cursor:default; }
 .life:active{ transform:scale(0.985); }
 
 .life .ico{
@@ -273,7 +261,6 @@ body{
   display:flex;
   align-items:center;
   justify-content:center;
-  flex:0 0 auto;
 }
 
 .life svg{
@@ -288,14 +275,7 @@ body{
 
 .life.locked svg{ stroke:rgba(255,255,255,0.35); }
 
-.pips{
-  display:flex;
-  gap:8px;
-  align-items:center;
-  justify-content:center;
-  flex:0 0 auto;
-}
-
+.pips{ display:flex; gap:8px; align-items:center; justify-content:center; }
 .pip{
   width:10px;
   height:10px;
@@ -333,7 +313,7 @@ body{
   filter: drop-shadow(0 10px 12px rgba(0,0,0,.35));
 }
 
-/* tall vertical hit area */
+/* big press target */
 .shellHit{
   position:absolute;
   inset:0;
@@ -342,7 +322,7 @@ body{
   pointer-events:auto;
 }
 
-/* the actual shell art stays normal size */
+/* actual shell art */
 .shell{
   width:var(--shellSize);
   height:var(--shellSize);
@@ -361,27 +341,30 @@ body{
 .shellWrap.hint{ opacity:1; }
 
 /* =========================
-   PEARL
+   PEARL (TUCKED UNDER SHELL)
 ========================= */
 #pearl{
   position:absolute;
   width:var(--pearlSize);
   height:var(--pearlSize);
-  bottom:calc(34% + 18px);
+
+  /* IMPORTANT: tuck it INTO the shell area so it looks "under" it */
+  bottom:calc(34% + (var(--shellSize) * 0.12));
 
   transform:translateX(-50%);
   opacity:0;
   transition:opacity 140ms ease;
-  z-index:20;
+
+  /* IMPORTANT: behind the shells */
+  z-index:9;
 
   background-size:contain;
   background-repeat:no-repeat;
   background-position:center;
 
   filter:
-    drop-shadow(0 0 10px rgba(180,255,220,0.22))
-    drop-shadow(0 0 22px rgba( 90,255,190,0.14))
-    drop-shadow(0 10px 14px rgba(0,0,0,0.35));
+    drop-shadow(0 0 10px rgba(180,255,220,0.20))
+    drop-shadow(0 0 22px rgba( 90,255,190,0.12));
 }
 
 /* =========================
