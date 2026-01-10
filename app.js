@@ -6,8 +6,7 @@ const LOADING_HOLD_MS = 5200;
 const FADE_MS = 550;
 const POST_TITLE_LOCK_MS = 3000;
 
-/* Resolve gate: prevents ANY accidental “skip” during stage-change/rebuild */
-const RESOLVE_HOLD_MS = 900;      // time pearl stays visible after guess
+const RESOLVE_HOLD_MS = 900;
 const POST_RESOLVE_BUFFER_MS = 260;
 
 /* =========================
@@ -39,7 +38,6 @@ const THEMES = [
 /* =========================
    DOM
 ========================= */
-const board         = document.getElementById("board");
 const shellLayer    = document.getElementById("shellLayer");
 const pearl         = document.getElementById("pearl");
 const msg           = document.getElementById("msg");
@@ -51,9 +49,13 @@ const loadingScreen = document.getElementById("loadingScreen");
 const titleScreen   = document.getElementById("titleScreen");
 const titleCta      = document.querySelector(".pressStart");
 
+const gameOverMenu  = document.getElementById("gameOverMenu");
+const btnRetry      = document.getElementById("btnRetry");
+const btnTitle      = document.getElementById("btnTitle");
+
 /* Lifelines */
 const lifeSlow   = document.getElementById("lifeSlow");
-const lifeShield = document.getElementById("lifeShield");
+const lifeShield = document.getElementById("lifeShield"); // display-only
 const lifeFifty  = document.getElementById("lifeFifty");
 const lifeReveal = document.getElementById("lifeReveal");
 
@@ -67,6 +69,11 @@ const dotsReveal = document.getElementById("dotsReveal");
 ========================= */
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const rndInt = (n) => Math.floor(Math.random() * n);
+
+function setMessage(t){ msg.textContent = t; }
+function refreshHUD(){ scoreLine.textContent = `Score: ${score}`; }
+function showPearl(){ pearl.style.opacity = "1"; }
+function hidePearl(){ pearl.style.opacity = "0"; }
 
 function showScreen(el){
   el.classList.remove("fadeOut");
@@ -86,10 +93,10 @@ function hideGameUnderScreens(shouldHide){
   if (ll) ll.style.visibility = shouldHide ? "hidden" : "visible";
 }
 
-function setMessage(t){ msg.textContent = t; }
-function refreshHUD(){ scoreLine.textContent = `Score: ${score}`; }
-function showPearl(){ pearl.style.opacity = "1"; }
-function hidePearl(){ pearl.style.opacity = "0"; }
+function stopTap(e){
+  e.preventDefault();
+  e.stopPropagation();
+}
 
 /* =========================
    THEME + ICONS
@@ -134,9 +141,22 @@ function installLifelineIcons(){
 }
 
 /* =========================
+   GAME OVER MENU (NEW)
+========================= */
+function showGameOverMenu(){
+  gameOverMenu.classList.add("show");
+  gameOverMenu.setAttribute("aria-hidden", "false");
+}
+
+function hideGameOverMenu(){
+  gameOverMenu.classList.remove("show");
+  gameOverMenu.setAttribute("aria-hidden", "true");
+}
+
+/* =========================
    STATE
 ========================= */
-let phase = "loading"; // loading -> title -> lockout -> ready -> shuffling -> guessing -> resolving
+let phase = "loading"; // loading -> title -> lockout -> ready -> shuffling -> guessing -> resolving -> gameoverMenu
 let lockTimer = null;
 
 let score = 0;
@@ -152,18 +172,20 @@ let difficultyTier = 0;
 /* theme */
 let themeIndex = 0;
 
-/* shells layout */
+/* shells */
 let shellCount = 3;
 let shells = [];
 let slots = [];
 let slotPerc = [];
 let pearlUnderShellId = 0;
 
-/* lifelines (max 3 each) */
+/* =========================
+   LIFELINES
+========================= */
 const MAX_LIFE = 3;
 let life = {
   slow:   1,
-  shield: 1,
+  shield: 1,  // always-on auto
   fifty:  0,
   reveal: 0
 };
@@ -171,12 +193,6 @@ let life = {
 let slowArmed = false;
 let fiftyActive = false;
 let revealActive = false;
-
-/* Shield behavior:
-   - AUTO by default (no press needed)
-   - Optional tap toggles auto on/off (does NOT consume)
-*/
-let shieldAutoEnabled = true;
 
 /* =========================
    LAYOUT
@@ -264,6 +280,13 @@ function applyArt(){
 }
 
 /* =========================
+   HIGHLIGHTS
+========================= */
+function clearShellHighlights(){
+  shells.forEach(s => s.classList.remove("dim","focus","revealHint"));
+}
+
+/* =========================
    BUILD SHELLS
 ========================= */
 function buildShells(n){
@@ -295,7 +318,6 @@ function buildShells(n){
 
   if (pearlUnderShellId >= shellCount) pearlUnderShellId = 0;
   placePearlUnderShell(pearlUnderShellId);
-
   clearShellHighlights();
 }
 
@@ -322,16 +344,12 @@ function refreshLifelinesUI(){
   renderDots(dotsFifty, life.fifty);
   renderDots(dotsReveal, life.reveal);
 
-  // Enable/disable logic
-  lifeSlow.disabled   = (life.slow <= 0) || (phase === "loading" || phase === "title" || phase === "lockout" || phase === "resolving");
-  // Shield is always useful (toggle auto), except on screens/resolving
-  lifeShield.disabled = (life.shield <= 0) || (phase === "loading" || phase === "title" || phase === "lockout" || phase === "resolving");
-  lifeFifty.disabled  = (life.fifty <= 0) || (phase !== "guessing") || fiftyActive;
-  lifeReveal.disabled = (life.reveal <= 0) || (phase !== "guessing") || revealActive;
-}
+  // disabled while menu open or screens
+  const blocked = (phase === "loading" || phase === "title" || phase === "lockout" || phase === "gameoverMenu");
 
-function clearShellHighlights(){
-  shells.forEach(s => s.classList.remove("dim","focus","revealHint"));
+  lifeSlow.disabled   = blocked || (life.slow <= 0) || (phase !== "ready" && phase !== "guessing");
+  lifeFifty.disabled  = blocked || (life.fifty <= 0) || (phase !== "guessing") || fiftyActive;
+  lifeReveal.disabled = blocked || (life.reveal <= 0) || (phase !== "guessing") || revealActive;
 }
 
 /* Award extras ONLY during reset 7->3 */
@@ -347,21 +365,11 @@ function awardResetExtras(){
 ========================= */
 function useSlow(){
   if (life.slow <= 0) return;
+  if (phase !== "ready" && phase !== "guessing") return;
 
-  if (phase === "ready" || phase === "guessing"){
-    slowArmed = true;
-    life.slow--;
-    setMessage("Slow armed for next round.");
-    refreshLifelinesUI();
-  }
-}
-
-function useShield(){
-  if (life.shield <= 0) return;
-
-  // Toggle auto behavior (no consumption)
-  shieldAutoEnabled = !shieldAutoEnabled;
-  setMessage(shieldAutoEnabled ? "Shield: Auto ON" : "Shield: Auto OFF");
+  slowArmed = true;
+  life.slow--;
+  setMessage("Slow armed for next round.");
   refreshLifelinesUI();
 }
 
@@ -457,9 +465,7 @@ async function shuffle(){
     busy = false;
     canGuess = true;
     phase = "guessing";
-
     slowArmed = false;
-
     refreshLifelinesUI();
     setMessage("Pick a shell.");
   }
@@ -495,7 +501,7 @@ async function startRound(){
 }
 
 /* =========================
-   GUESS (RESOLVE GATE)
+   GUESS (SHIELD AUTO)
 ========================= */
 async function handleGuess(shellId){
   if (phase !== "guessing") return;
@@ -510,7 +516,6 @@ async function handleGuess(shellId){
   showPearl();
 
   const correct = (shellId === pearlUnderShellId);
-
   await sleep(RESOLVE_HOLD_MS);
 
   if (correct){
@@ -523,13 +528,9 @@ async function handleGuess(shellId){
     const result = advanceStageIfReady();
 
     if (result.changed){
-      if (result.didReset){
-        awardResetExtras();
-      }
+      if (result.didReset) awardResetExtras();
 
-      setThemeCSS();
       buildShells(stageShells);
-
       pearlUnderShellId = rndInt(shellCount);
       placePearlUnderShell(pearlUnderShellId);
       hidePearl();
@@ -554,13 +555,11 @@ async function handleGuess(shellId){
     return;
   }
 
-  // WRONG:
-  // Shield should AUTO-consume (no press needed) and prevent restart.
-  if (shieldAutoEnabled && life.shield > 0){
+  // Wrong: consume shield if available
+  if (life.shield > 0){
     life.shield--;
     hidePearl();
     clearShellHighlights();
-
     setMessage("Shield saved you.");
     refreshLifelinesUI();
 
@@ -573,13 +572,68 @@ async function handleGuess(shellId){
     return;
   }
 
-  // No shield -> Game Over
-  setMessage("Wrong — Game Over");
+  // No shield: show Game Over menu (NEW)
+  hidePearl();
   overlay.classList.add("flash");
-  await sleep(520);
+  await sleep(420);
   overlay.classList.remove("flash");
-  await sleep(250);
-  resetGame();
+
+  busy = false;
+  canGuess = false;
+  phase = "gameoverMenu";
+  refreshLifelinesUI();
+  showGameOverMenu();
+}
+
+/* =========================
+   RETRY / START MENU (NEW)
+========================= */
+function resetRunState(){
+  busy = false;
+  canGuess = false;
+
+  score = 0;
+  totalWinsThisRun = 0;
+
+  stageShells = 3;
+  stageWins = 0;
+
+  themeIndex = 0;
+  difficultyTier = 0;
+
+  life = { slow:1, shield:1, fifty:0, reveal:0 };
+  slowArmed = false;
+  fiftyActive = false;
+  revealActive = false;
+
+  refreshHUD();
+  hidePearl();
+  clearShellHighlights();
+  applyArt();
+  buildShells(3);
+  pearlUnderShellId = rndInt(shellCount);
+  placePearlUnderShell(pearlUnderShellId);
+  hidePearl();
+}
+
+function goToTitle(){
+  hideGameOverMenu();
+  hideGameUnderScreens(true);
+  showScreen(titleScreen);
+  phase = "title";
+  setMessage("");
+  refreshLifelinesUI();
+}
+
+function retryNow(){
+  hideGameOverMenu();
+  hideGameUnderScreens(false);
+
+  resetRunState();
+
+  phase = "ready";
+  refreshLifelinesUI();
+  setMessage("Tap anywhere to start");
 }
 
 /* =========================
@@ -588,6 +642,7 @@ async function handleGuess(shellId){
 function onGlobalTap(){
   if (phase === "loading") return;
   if (phase === "shuffling" || phase === "guessing" || phase === "resolving") return;
+  if (phase === "gameoverMenu") return; // menu controls only
 
   if (phase === "title"){
     hideScreen(titleScreen);
@@ -616,22 +671,11 @@ function onGlobalTap(){
 document.addEventListener("pointerdown", onGlobalTap, { passive:true });
 
 /* =========================
-   LIFELINE EVENTS
-========================= */
-function stopTap(e){
-  e.preventDefault();
-  e.stopPropagation();
-}
-
-lifeSlow.addEventListener("pointerdown", (e) => { stopTap(e); useSlow(); }, { passive:false });
-lifeShield.addEventListener("pointerdown", (e) => { stopTap(e); useShield(); }, { passive:false });
-lifeFifty.addEventListener("pointerdown", (e) => { stopTap(e); useFifty(); }, { passive:false });
-lifeReveal.addEventListener("pointerdown", (e) => { stopTap(e); useReveal(); }, { passive:false });
-
-/* =========================
    RESET / BOOT
 ========================= */
 function resetGame(){
+  // Full reset including boot sequence
+  hideGameOverMenu();
   busy = false;
   canGuess = false;
 
@@ -648,7 +692,6 @@ function resetGame(){
   slowArmed = false;
   fiftyActive = false;
   revealActive = false;
-  shieldAutoEnabled = true;
 
   refreshHUD();
   hidePearl();
@@ -669,6 +712,7 @@ async function boot(){
   placePearlUnderShell(pearlUnderShellId);
   hidePearl();
 
+  hideGameOverMenu();
   hideGameUnderScreens(true);
   setMessage("");
   phase = "loading";
@@ -684,6 +728,17 @@ async function boot(){
   phase = "title";
   refreshLifelinesUI();
 }
+
+/* Lifeline events */
+lifeSlow.addEventListener("pointerdown", (e) => { stopTap(e); useSlow(); }, { passive:false });
+lifeFifty.addEventListener("pointerdown", (e) => { stopTap(e); useFifty(); }, { passive:false });
+lifeReveal.addEventListener("pointerdown", (e) => { stopTap(e); useReveal(); }, { passive:false });
+// Shield has no click handler
+
+/* Game over menu events */
+gameOverMenu.addEventListener("pointerdown", stopTap, { passive:false });
+btnRetry.addEventListener("pointerdown", (e) => { stopTap(e); retryNow(); }, { passive:false });
+btnTitle.addEventListener("pointerdown", (e) => { stopTap(e); goToTitle(); }, { passive:false });
 
 btnReset.addEventListener("click", (e) => {
   e.stopPropagation();
