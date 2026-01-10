@@ -4,6 +4,7 @@
 
   --themeColor: #F3EFE2;
 
+  /* Lifeline dots */
   --dotOn: #FFD54A;
   --dotOff: rgba(255,255,255,0.18);
 }
@@ -133,7 +134,7 @@ body{
 }
 
 /* =========================
-   LIFELINES
+   LIFELINES (TOP RIGHT)
 ========================= */
 #lifelines{
   position:absolute;
@@ -152,18 +153,27 @@ body{
   background:rgba(10,10,18,0.55);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
+
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
   padding:6px 6px 8px;
+
   color:var(--themeColor);
   cursor:pointer;
   user-select:none;
   touch-action:manipulation;
 }
-.life.static{ cursor:default; }
-.life:disabled{ opacity:0.35; cursor:not-allowed; }
+
+.life.static{
+  cursor:default;
+}
+
+.life:disabled{
+  opacity:0.35;
+  cursor:not-allowed;
+}
 
 .life .icon{
   width:22px;
@@ -172,19 +182,31 @@ body{
   place-items:center;
   margin-bottom:4px;
 }
-.life .icon svg{ width:22px; height:22px; }
+
+.life .icon svg{
+  width:22px;
+  height:22px;
+}
+
+/* 🔧 Normalize shield icon visual size */
+#lifeShield .icon svg{
+  transform: scale(0.88);
+  transform-origin: center;
+}
 
 .life .dots{
   display:flex;
   gap:4px;
   height:8px;
 }
+
 .dot{
   width:7px;
   height:7px;
-  border-radius:99px;
+  border-radius:999px;
   background:var(--dotOff);
 }
+
 .dot.on{
   background:var(--dotOn);
   box-shadow: 0 0 10px rgba(255,213,74,0.25);
@@ -204,7 +226,7 @@ body{
   width:var(--shellSize);
   height:var(--shellSize);
 
-  /* moved up */
+  /* raised slightly for better balance */
   bottom:33%;
 
   transform:translateX(-50%);
@@ -215,17 +237,30 @@ body{
   transition:left 260ms ease, transform 260ms ease;
   filter: drop-shadow(0 10px 12px rgba(0,0,0,.35));
 }
+
 .shell.lift{
   transform:translateX(-50%) translateY(-22px) scale(1.03);
 }
-.shell.dim{ opacity:0.26; filter: drop-shadow(0 10px 12px rgba(0,0,0,.2)); }
-.shell.focus{ outline: 2px solid rgba(255,255,255,0.14); }
-.shell.revealHint{
-  outline: 2px solid rgba(255,213,74,0.55);
-  filter: drop-shadow(0 0 14px rgba(255,213,74,0.22)) drop-shadow(0 10px 12px rgba(0,0,0,.35));
+
+.shell.dim{
+  opacity:0.26;
+  filter: drop-shadow(0 10px 12px rgba(0,0,0,.2));
 }
 
-/* PEARL */
+.shell.focus{
+  outline:2px solid rgba(255,255,255,0.14);
+}
+
+.shell.revealHint{
+  outline:2px solid rgba(255,213,74,0.55);
+  filter:
+    drop-shadow(0 0 14px rgba(255,213,74,0.22))
+    drop-shadow(0 10px 12px rgba(0,0,0,.35));
+}
+
+/* =========================
+   PEARL
+========================= */
 #pearl{
   position:absolute;
   width:var(--pearlSize);
@@ -242,11 +277,13 @@ body{
 
   filter:
     drop-shadow(0 0 10px rgba(180,255,220,0.22))
-    drop-shadow(0 0 22px rgba( 90,255,190,0.14))
+    drop-shadow(0 0 22px rgba(90,255,190,0.14))
     drop-shadow(0 10px 14px rgba(0,0,0,0.35));
 }
 
-/* OVERLAY */
+/* =========================
+   OVERLAY / RECORD
+========================= */
 #overlay{
   position:absolute;
   inset:0;
@@ -270,26 +307,23 @@ body{
   transition:opacity 250ms ease;
   z-index:60;
 }
-#recordText.show{ opacity:1; }
 
 /* =========================
-   GAME OVER MENU (NEW)
+   GAME OVER MENU
 ========================= */
 #gameOverMenu{
   position:absolute;
   inset:0;
   display:none;
-  z-index:1200; /* above everything except rotate overlay */
+  z-index:1200;
 }
-
 #gameOverMenu.show{ display:block; }
 
 .gomBackdrop{
   position:absolute;
   inset:0;
-  background: rgba(0,0,0,0.55);
+  background:rgba(0,0,0,0.55);
   backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
 }
 
 .gomPanel{
@@ -300,11 +334,10 @@ body{
   width:min(420px, 86%);
   border-radius:18px;
   border:1px solid rgba(255,255,255,0.14);
-  background: rgba(10,10,18,0.70);
-  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
-  padding:16px 16px 14px;
+  background:rgba(10,10,18,0.70);
+  box-shadow:0 18px 40px rgba(0,0,0,0.35);
+  padding:16px;
   text-align:center;
-  color:#e8e8ef;
 }
 
 .gomTitle{
@@ -317,7 +350,6 @@ body{
   margin-top:8px;
   opacity:0.85;
   font-size:14px;
-  line-height:1.35;
 }
 
 .gomBtns{
@@ -332,12 +364,12 @@ body{
   padding:10px 14px;
   border-radius:12px;
   border:1px solid rgba(255,255,255,0.14);
-  background: rgba(255,255,255,0.07);
+  background:rgba(255,255,255,0.07);
   color:#e8e8ef;
   cursor:pointer;
   min-width:120px;
 }
 #btnRetry:hover,
 #btnTitle:hover{
-  background: rgba(255,255,255,0.10);
+  background:rgba(255,255,255,0.10);
 }
