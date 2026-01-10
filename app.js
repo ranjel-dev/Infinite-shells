@@ -58,9 +58,6 @@ const titleCta      = document.querySelector(".pressStart");
 
 const menuScreen    = document.getElementById("menuScreen");
 const btnClassic    = document.getElementById("btnClassic");
-const btnHardcore   = document.getElementById("btnHardcore");
-const btnLeaderboards = document.getElementById("btnLeaderboards");
-const btnSettings   = document.getElementById("btnSettings");
 
 const lifeSlow   = document.getElementById("lifeSlow");
 const lifeShield = document.getElementById("lifeShield");
@@ -128,8 +125,8 @@ let themeIndex = 0;
 
 /* shells */
 let shellCount = 3;
-let shellWraps = [];      // interactive wrappers
-let shellVisuals = [];    // inner art divs
+let shellWraps = [];
+let shellVisuals = [];
 let slots = [];
 let slotPerc = [];
 let pearlUnderShellId = 0;
@@ -141,8 +138,6 @@ const lifelines = {
   fifty:  { unlocked:false, charges:0, active:false },
   reveal: { unlocked:false, charges:0 }
 };
-
-/* reset counter for unlock schedule */
 let resetCount = 0;
 
 /* =========================
@@ -307,7 +302,7 @@ function syncLifelineUI(){
 }
 
 /* =========================
-   BUILD SHELLS (WITH BIG HITBOX)
+   BUILD SHELLS (BIG HITBOX)
 ========================= */
 function buildShells(n){
   shellLayer.innerHTML = "";
@@ -537,9 +532,7 @@ async function handleGuess(shellId){
     await sleep(RESOLVE_MIN_SHOW_MS);
     hidePearl();
 
-    // apply visuals immediately so nothing pops after tap
     syncStageVisualsNow();
-
     await sleep(RESOLVE_EXTRA_MS);
 
     busy = false;
@@ -549,7 +542,6 @@ async function handleGuess(shellId){
     return;
   }
 
-  // wrong
   if (lifelines.shield.unlocked && lifelines.shield.charges > 0){
     lifelines.shield.charges--;
     syncLifelineUI();
@@ -594,7 +586,6 @@ function onGlobalTap(){
   if (phase === "loading") return;
   if (phase === "shuffling" || phase === "guessing" || phase === "resolving" || phase === "gameover") return;
 
-  // Title tap goes to MENU now
   if (phase === "title"){
     hideScreen(titleScreen);
     showScreen(menuScreen);
@@ -604,9 +595,7 @@ function onGlobalTap(){
     return;
   }
 
-  // In menu, taps do nothing (must press Classic button)
   if (phase === "menu") return;
-
   if (phase === "lockout") return;
 
   if (phase === "ready"){
@@ -619,7 +608,6 @@ document.addEventListener("pointerdown", onGlobalTap, { passive:true });
    MENU BUTTONS
 ========================= */
 function enterClassicMode(){
-  // show game under UI and enter lockout -> ready
   hideScreen(menuScreen);
   hideGameUnderScreens(false);
 
@@ -639,8 +627,6 @@ btnClassic.addEventListener("click", (e) => {
   if (phase !== "menu") return;
   enterClassicMode();
 });
-
-// other buttons intentionally inactive for now (disabled in HTML)
 
 /* =========================
    RESET / BOOT
@@ -679,7 +665,6 @@ async function boot(){
 
   if (titleCta) titleCta.style.display = SHOW_TITLE_CTA_OVERLAY ? "block" : "none";
 
-  // build game under screens but keep hidden until Classic
   buildShells(3);
   pearlUnderShellId = rndInt(shellCount);
   placePearlUnderShell(pearlUnderShellId);
@@ -697,7 +682,6 @@ async function boot(){
   showScreen(titleScreen);
   await sleep(FADE_MS);
 
-  // ensure menu is hidden at boot
   menuScreen.classList.remove("show");
   menuScreen.classList.remove("fadeOut");
 
@@ -711,7 +695,6 @@ function fullResetToTitle(){
   phase = "title";
   showScreen(titleScreen);
 
-  // hide menu if it was up
   menuScreen.classList.remove("show");
   menuScreen.classList.remove("fadeOut");
 }
