@@ -1,693 +1,97 @@
-/* =========================
-   LOCKED / APPROVED BASE
-========================= */
-const SHOW_TITLE_CTA_OVERLAY = true;
-const LOADING_HOLD_MS = 5200;
-const FADE_MS = 550;
-const POST_TITLE_LOCK_MS = 3000;
-
-/* Resolve gate: prevents ANY accidental “skip” during stage-change/rebuild */
-const RESOLVE_HOLD_MS = 900;      // time pearl stays visible after guess
-const POST_RESOLVE_BUFFER_MS = 260;
-
-/* =========================
-   ASSETS
-========================= */
-const ASSETS = {
-  ball: "https://i.imgur.com/kLGt0DN.png",
-  shells: {
-    ivory:  "https://i.imgur.com/plbX02y.png",
-    coral:  "https://i.imgur.com/eo5doV1.png",
-    green:  "https://i.imgur.com/OHGwmzW.png",
-    gray:   "https://i.imgur.com/bNUWfLU.png",
-    purple: "https://i.imgur.com/xypjVlk.png",
-    blue:   "https://i.imgur.com/cJeZGFc.png",
-    red:    "https://i.imgur.com/eJI6atV.png"
-  }
-};
-
-const THEMES = [
-  { key:"ivory",  color:"#F3EFE2" },
-  { key:"coral",  color:"#FF6B6B" },
-  { key:"green",  color:"#46D18C" },
-  { key:"gray",   color:"#B8BECA" },
-  { key:"purple", color:"#B06CFF" },
-  { key:"blue",   color:"#4AA3FF" },
-  { key:"red",    color:"#FF3C3C" }
-];
-
-/* =========================
-   DOM
-========================= */
-const board         = document.getElementById("board");
-const shellLayer    = document.getElementById("shellLayer");
-const pearl         = document.getElementById("pearl");
-const msg           = document.getElementById("msg");
-const scoreLine     = document.getElementById("scoreLine");
-const overlay       = document.getElementById("overlay");
-const btnReset      = document.getElementById("btnReset");
-
-const loadingScreen = document.getElementById("loadingScreen");
-const titleScreen   = document.getElementById("titleScreen");
-const titleCta      = document.querySelector(".pressStart");
-
-/* Lifelines */
-const lifeSlow   = document.getElementById("lifeSlow");
-const lifeShield = document.getElementById("lifeShield");
-const lifeFifty  = document.getElementById("lifeFifty");
-const lifeReveal = document.getElementById("lifeReveal");
-
-const dotsSlow   = document.getElementById("dotsSlow");
-const dotsShield = document.getElementById("dotsShield");
-const dotsFifty  = document.getElementById("dotsFifty");
-const dotsReveal = document.getElementById("dotsReveal");
-
-/* =========================
-   HELPERS
-========================= */
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-const rndInt = (n) => Math.floor(Math.random() * n);
-
-function showScreen(el){
-  el.classList.remove("fadeOut");
-  el.classList.add("show");
-}
-async function hideScreen(el){
-  el.classList.add("fadeOut");
-  await sleep(FADE_MS);
-  el.classList.remove("show");
-  el.classList.remove("fadeOut");
-}
-
-function hideGameUnderScreens(shouldHide){
-  shellLayer.style.visibility = shouldHide ? "hidden" : "visible";
-  pearl.style.visibility = shouldHide ? "hidden" : "visible";
-  const ll = document.getElementById("lifelines");
-  if (ll) ll.style.visibility = shouldHide ? "hidden" : "visible";
-}
-
-function setMessage(t){ msg.textContent = t; }
-function refreshHUD(){ scoreLine.textContent = `Score: ${score}`; }
-function showPearl(){ pearl.style.opacity = "1"; }
-function hidePearl(){ pearl.style.opacity = "0"; }
-
-/* =========================
-   THEME + ICONS
-========================= */
-function setThemeCSS(){
-  const th = THEMES[themeIndex % THEMES.length];
-  document.documentElement.style.setProperty("--themeColor", th.color);
-}
-
-function svgIcon(kind){
-  const common = `fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"`;
-  if (kind === "slow") {
-    return `<svg viewBox="0 0 24 24" ${common}>
-      <path d="M7 2h10M7 22h10"/>
-      <path d="M8 2c0 6 8 6 8 10s-8 4-8 10"/>
-    </svg>`;
-  }
-  if (kind === "shield") {
-    return `<svg viewBox="0 0 24 24" ${common}>
-      <path d="M12 2l8 4v7c0 5-3.5 9-8 9s-8-4-8-9V6l8-4z"/>
-      <path d="M12 6v12"/>
-    </svg>`;
-  }
-  if (kind === "fifty") {
-    return `<svg viewBox="0 0 24 24" ${common}>
-      <circle cx="12" cy="12" r="9"/>
-      <path d="M12 3v18"/>
-      <path d="M9 9h2M13 15h2"/>
-    </svg>`;
-  }
-  return `<svg viewBox="0 0 24 24" ${common}>
-    <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/>
-    <circle cx="12" cy="12" r="2.5"/>
-  </svg>`;
-}
-
-function installLifelineIcons(){
-  lifeSlow.querySelector(".icon").innerHTML   = svgIcon("slow");
-  lifeShield.querySelector(".icon").innerHTML = svgIcon("shield");
-  lifeFifty.querySelector(".icon").innerHTML  = svgIcon("fifty");
-  lifeReveal.querySelector(".icon").innerHTML = svgIcon("reveal");
-}
-
-/* =========================
-   STATE
-========================= */
-let phase = "loading"; // loading -> title -> lockout -> ready -> shuffling -> guessing -> resolving
-let lockTimer = null;
-
-let score = 0;
-let busy = false;
-let canGuess = false;
-
-/* ladder */
-let stageShells = 3;
-let stageWins = 0;
-let totalWinsThisRun = 0;
-let difficultyTier = 0;
-
-/* theme */
-let themeIndex = 0;
-
-/* shells layout */
-let shellCount = 3;
-let shells = [];
-let slots = [];
-let slotPerc = [];
-let pearlUnderShellId = 0;
-
-/* lifelines (max 3 each) */
-const MAX_LIFE = 3;
-let life = {
-  slow:   1,
-  shield: 1,
-  fifty:  0,
-  reveal: 0
-};
-
-let slowArmed = false;
-let fiftyActive = false;
-let revealActive = false;
-
-/* Shield behavior:
-   - AUTO by default (no press needed)
-   - Optional tap toggles auto on/off (does NOT consume)
-*/
-let shieldAutoEnabled = true;
-
-/* =========================
-   LAYOUT
-========================= */
-function computeSlotPercents(n){
-  const leftMargin =
-    (n >= 7) ? 8 :
-    (n === 6) ? 12 :
-    (n === 5) ? 15 :
-    (n === 4) ? 20 : 25;
-
-  const span = 100 - leftMargin * 2;
-  const step = span / (n - 1);
-  return Array.from({ length:n }, (_, i) => leftMargin + i * step);
-}
-
-function recomputeSlots(){
-  slotPerc = computeSlotPercents(shellCount);
-}
-
-/* =========================
-   LADDER: 2-2-2-1-1
-========================= */
-function winsNeededForStage(s){
-  if (s === 3) return 2;
-  if (s === 4) return 2;
-  if (s === 5) return 2;
-  if (s === 6) return 1;
-  if (s === 7) return 1;
-  return 2;
-}
-
-function advanceStageIfReady(){
-  const need = winsNeededForStage(stageShells);
-  if (stageWins < need) return { changed:false, didReset:false };
-
-  stageWins = 0;
-
-  if (stageShells === 7){
-    stageShells = 3;
-    themeIndex = (themeIndex + 1) % THEMES.length;
-    difficultyTier++;
-    return { changed:true, didReset:true };
-  } else {
-    stageShells++;
-    return { changed:true, didReset:false };
-  }
-}
-
-/* =========================
-   DIFFICULTY
-========================= */
-function difficultyFromProgress(totalWins, shellsNow, tier){
-  const t = Math.min(1, totalWins / 40);
-  const ease = t * t * (3 - 2 * t);
-
-  const baseSwaps = 6 + (shellsNow - 3) * 2;
-  const tierBumpSwaps = Math.min(8, tier * 1.0);
-  const swaps = Math.round(baseSwaps + ease * 8 + tierBumpSwaps);
-
-  let duration = Math.round(
-    270 - ease * 120 - (shellsNow - 3) * 12 - tier * 8
-  );
-  duration = Math.max(95, duration);
-
-  const pauseChance = Math.min(0.30, 0.10 + ease * 0.10);
-  const pauseExtraMax = Math.round(70 + ease * 140);
-
-  return { swaps, duration, pauseChance, pauseExtraMax };
-}
-
-function applySlow(duration){
-  return Math.min(520, Math.round(duration * 2.2));
-}
-
-/* =========================
-   ART APPLY
-========================= */
-function applyArt(){
-  const th = THEMES[themeIndex % THEMES.length];
-  const shellURL = ASSETS.shells[th.key];
-  shells.forEach(s => s.style.backgroundImage = `url(${shellURL})`);
-  pearl.style.backgroundImage = `url(${ASSETS.ball})`;
-  setThemeCSS();
-}
-
-/* =========================
-   BUILD SHELLS
-========================= */
-function buildShells(n){
-  shellLayer.innerHTML = "";
-  shells = [];
-  slots = [];
-
-  shellCount = n;
-  recomputeSlots();
-
-  for (let shellId = 0; shellId < shellCount; shellId++){
-    const d = document.createElement("div");
-    d.className = "shell";
-
-    slots[shellId] = shellId;
-    d.style.left = `${slotPerc[slots[shellId]]}%`;
-
-    d.addEventListener("pointerdown", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      handleGuess(shellId);
-    }, { passive:false });
-
-    shells.push(d);
-    shellLayer.appendChild(d);
-  }
-
-  applyArt();
-
-  if (pearlUnderShellId >= shellCount) pearlUnderShellId = 0;
-  placePearlUnderShell(pearlUnderShellId);
-
-  clearShellHighlights();
-}
-
-function placePearlUnderShell(shellId){
-  const slotIndex = slots[shellId];
-  pearl.style.left = `${slotPerc[slotIndex]}%`;
-}
-
-/* =========================
-   LIFELINE UI
-========================= */
-function renderDots(el, count){
-  el.innerHTML = "";
-  for (let i = 0; i < MAX_LIFE; i++){
-    const d = document.createElement("span");
-    d.className = "dot" + (i < count ? " on" : "");
-    el.appendChild(d);
-  }
-}
-
-function refreshLifelinesUI(){
-  renderDots(dotsSlow, life.slow);
-  renderDots(dotsShield, life.shield);
-  renderDots(dotsFifty, life.fifty);
-  renderDots(dotsReveal, life.reveal);
-
-  // Enable/disable logic
-  lifeSlow.disabled   = (life.slow <= 0) || (phase === "loading" || phase === "title" || phase === "lockout" || phase === "resolving");
-  // Shield is always useful (toggle auto), except on screens/resolving
-  lifeShield.disabled = (life.shield <= 0) || (phase === "loading" || phase === "title" || phase === "lockout" || phase === "resolving");
-  lifeFifty.disabled  = (life.fifty <= 0) || (phase !== "guessing") || fiftyActive;
-  lifeReveal.disabled = (life.reveal <= 0) || (phase !== "guessing") || revealActive;
-}
-
-function clearShellHighlights(){
-  shells.forEach(s => s.classList.remove("dim","focus","revealHint"));
-}
-
-/* Award extras ONLY during reset 7->3 */
-function awardResetExtras(){
-  life.slow   = Math.min(MAX_LIFE, life.slow + 1);
-  life.shield = Math.min(MAX_LIFE, life.shield + 1);
-  life.fifty  = Math.min(MAX_LIFE, life.fifty + 1);
-  life.reveal = Math.min(MAX_LIFE, life.reveal + 1);
-}
-
-/* =========================
-   LIFELINE ACTIONS
-========================= */
-function useSlow(){
-  if (life.slow <= 0) return;
-
-  if (phase === "ready" || phase === "guessing"){
-    slowArmed = true;
-    life.slow--;
-    setMessage("Slow armed for next round.");
-    refreshLifelinesUI();
-  }
-}
-
-function useShield(){
-  if (life.shield <= 0) return;
-
-  // Toggle auto behavior (no consumption)
-  shieldAutoEnabled = !shieldAutoEnabled;
-  setMessage(shieldAutoEnabled ? "Shield: Auto ON" : "Shield: Auto OFF");
-  refreshLifelinesUI();
-}
-
-function useFifty(){
-  if (life.fifty <= 0) return;
-  if (phase !== "guessing") return;
-
-  fiftyActive = true;
-  life.fifty--;
-
-  const correct = pearlUnderShellId;
-  let other = rndInt(shellCount);
-  while (other === correct) other = rndInt(shellCount);
-
-  shells.forEach((s, id) => {
-    if (id === correct || id === other) s.classList.add("focus");
-    else s.classList.add("dim");
-  });
-
-  setMessage("50/50: choose between the two lit shells.");
-  refreshLifelinesUI();
-}
-
-function useReveal(){
-  if (life.reveal <= 0) return;
-  if (phase !== "guessing") return;
-
-  revealActive = true;
-  life.reveal--;
-
-  shells[pearlUnderShellId]?.classList.add("revealHint");
-  setMessage("Reveal: the correct shell is hinted.");
-  refreshLifelinesUI();
-}
-
-/* =========================
-   ROUND FLOW
-========================= */
-function pickPearlForRound(){
-  pearlUnderShellId = rndInt(shellCount);
-  placePearlUnderShell(pearlUnderShellId);
-}
-
-async function animateSwap(a, b, duration){
-  shells[a].classList.add("lift");
-  shells[b].classList.add("lift");
-
-  const tmp = slots[a];
-  slots[a] = slots[b];
-  slots[b] = tmp;
-
-  shells[a].style.transitionDuration = `${duration}ms`;
-  shells[b].style.transitionDuration = `${duration}ms`;
-
-  shells[a].style.left = `${slotPerc[slots[a]]}%`;
-  shells[b].style.left = `${slotPerc[slots[b]]}%`;
-
-  await sleep(Math.max(90, duration * 0.55));
-  shells[a].classList.remove("lift");
-  shells[b].classList.remove("lift");
-  await sleep(Math.max(90, duration * 0.55));
-}
-
-async function shuffle(){
-  const d0 = difficultyFromProgress(totalWinsThisRun, shellCount, difficultyTier);
-
-  let duration = d0.duration;
-  let swaps = d0.swaps;
-
-  if (slowArmed){
-    duration = applySlow(duration);
-    swaps = Math.max(3, Math.round(swaps * 0.8));
-  }
-
-  busy = true;
-  canGuess = false;
-  phase = "shuffling";
-  refreshLifelinesUI();
-  setMessage("Shuffling…");
-
-  try{
-    for (let k = 0; k < swaps; k++){
-      let a = rndInt(shellCount);
-      let b = rndInt(shellCount);
-      while (b === a) b = rndInt(shellCount);
-
-      await animateSwap(a, b, duration);
-
-      if (Math.random() < d0.pauseChance) await sleep(rndInt(d0.pauseExtraMax));
-      else await sleep(rndInt(55));
-    }
-  } finally {
-    busy = false;
-    canGuess = true;
-    phase = "guessing";
-
-    slowArmed = false;
-
-    refreshLifelinesUI();
-    setMessage("Pick a shell.");
-  }
-}
-
-async function startRound(){
-  if (busy || canGuess) return;
-
-  fiftyActive = false;
-  revealActive = false;
-  clearShellHighlights();
-
-  if (shellCount !== stageShells){
-    buildShells(stageShells);
-  } else {
-    applyArt();
-    recomputeSlots();
-    shells.forEach((_, shellId) => {
-      shells[shellId].style.left = `${slotPerc[slots[shellId]]}%`;
-    });
-  }
-
-  pickPearlForRound();
-
-  refreshLifelinesUI();
-  setMessage(`Watch the pearl… (${stageShells} shells)`);
-  showPearl();
-  await sleep(900);
-  hidePearl();
-  await sleep(160);
-
-  await shuffle();
-}
-
-/* =========================
-   GUESS (RESOLVE GATE)
-========================= */
-async function handleGuess(shellId){
-  if (phase !== "guessing") return;
-  if (!canGuess || busy) return;
-
-  canGuess = false;
-  busy = true;
-  phase = "resolving";
-  refreshLifelinesUI();
-
-  placePearlUnderShell(pearlUnderShellId);
-  showPearl();
-
-  const correct = (shellId === pearlUnderShellId);
-
-  await sleep(RESOLVE_HOLD_MS);
-
-  if (correct){
-    score += 10;
-    refreshHUD();
-
-    totalWinsThisRun++;
-    stageWins++;
-
-    const result = advanceStageIfReady();
-
-    if (result.changed){
-      if (result.didReset){
-        awardResetExtras();
-      }
-
-      setThemeCSS();
-      buildShells(stageShells);
-
-      pearlUnderShellId = rndInt(shellCount);
-      placePearlUnderShell(pearlUnderShellId);
-      hidePearl();
-    } else {
-      hidePearl();
-    }
-
-    if (result.didReset){
-      setMessage("Stage cleared! Reset to 3.");
-    } else if (result.changed){
-      setMessage(`Level up! Now ${stageShells} shells.`);
-    } else {
-      setMessage("Correct!");
-    }
-
-    await sleep(POST_RESOLVE_BUFFER_MS);
-
-    busy = false;
-    phase = "ready";
-    refreshLifelinesUI();
-    setMessage("Tap anywhere for next round");
-    return;
-  }
-
-  // WRONG:
-  // Shield should AUTO-consume (no press needed) and prevent restart.
-  if (shieldAutoEnabled && life.shield > 0){
-    life.shield--;
-    hidePearl();
-    clearShellHighlights();
-
-    setMessage("Shield saved you.");
-    refreshLifelinesUI();
-
-    await sleep(POST_RESOLVE_BUFFER_MS);
-
-    busy = false;
-    phase = "ready";
-    refreshLifelinesUI();
-    setMessage("Tap anywhere for next round");
-    return;
-  }
-
-  // No shield -> Game Over
-  setMessage("Wrong — Game Over");
-  overlay.classList.add("flash");
-  await sleep(520);
-  overlay.classList.remove("flash");
-  await sleep(250);
-  resetGame();
-}
-
-/* =========================
-   TAP ANYWHERE
-========================= */
-function onGlobalTap(){
-  if (phase === "loading") return;
-  if (phase === "shuffling" || phase === "guessing" || phase === "resolving") return;
-
-  if (phase === "title"){
-    hideScreen(titleScreen);
-    hideGameUnderScreens(false);
-
-    phase = "lockout";
-    setMessage("Get ready…");
-
-    if (lockTimer) clearTimeout(lockTimer);
-    lockTimer = setTimeout(() => {
-      if (phase !== "lockout") return;
-      phase = "ready";
-      refreshLifelinesUI();
-      setMessage("Tap anywhere to start");
-    }, POST_TITLE_LOCK_MS);
-
-    return;
-  }
-
-  if (phase === "lockout") return;
-
-  if (phase === "ready"){
-    startRound();
-  }
-}
-document.addEventListener("pointerdown", onGlobalTap, { passive:true });
-
-/* =========================
-   LIFELINE EVENTS
-========================= */
-function stopTap(e){
-  e.preventDefault();
-  e.stopPropagation();
-}
-
-lifeSlow.addEventListener("pointerdown", (e) => { stopTap(e); useSlow(); }, { passive:false });
-lifeShield.addEventListener("pointerdown", (e) => { stopTap(e); useShield(); }, { passive:false });
-lifeFifty.addEventListener("pointerdown", (e) => { stopTap(e); useFifty(); }, { passive:false });
-lifeReveal.addEventListener("pointerdown", (e) => { stopTap(e); useReveal(); }, { passive:false });
-
-/* =========================
-   RESET / BOOT
-========================= */
-function resetGame(){
-  busy = false;
-  canGuess = false;
-
-  score = 0;
-  totalWinsThisRun = 0;
-
-  stageShells = 3;
-  stageWins = 0;
-
-  themeIndex = 0;
-  difficultyTier = 0;
-
-  life = { slow:1, shield:1, fifty:0, reveal:0 };
-  slowArmed = false;
-  fiftyActive = false;
-  revealActive = false;
-  shieldAutoEnabled = true;
-
-  refreshHUD();
-  hidePearl();
-  boot();
-}
-
-async function boot(){
-  if (lockTimer) clearTimeout(lockTimer);
-  lockTimer = null;
-
-  if (titleCta) titleCta.style.display = SHOW_TITLE_CTA_OVERLAY ? "block" : "none";
-
-  installLifelineIcons();
-  setThemeCSS();
-
-  buildShells(3);
-  pearlUnderShellId = rndInt(shellCount);
-  placePearlUnderShell(pearlUnderShellId);
-  hidePearl();
-
-  hideGameUnderScreens(true);
-  setMessage("");
-  phase = "loading";
-
-  showScreen(loadingScreen);
-  await sleep(FADE_MS);
-  await sleep(LOADING_HOLD_MS);
-
-  await hideScreen(loadingScreen);
-  showScreen(titleScreen);
-  await sleep(FADE_MS);
-
-  phase = "title";
-  refreshLifelinesUI();
-}
-
-btnReset.addEventListener("click", (e) => {
-  e.stopPropagation();
-  resetGame();
-});
-
-boot();
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Infinite Shells</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <div id="hud">
+    <div id="scoreLine">Score: 0</div>
+    <div id="msg"></div>
+
+    <div id="controls">
+      <button id="btnReset">Reset</button>
+    </div>
+  </div>
+
+  <div id="board" aria-label="Game Board">
+    <div id="rotateOverlay">Rotate to landscape</div>
+
+    <!-- LOADING SCREEN -->
+    <div id="loadingScreen" class="screen">
+      <div class="screenBg"></div>
+      <div class="screenContent">
+        <img
+          id="loadingLogo"
+          src="https://i.imgur.com/zswxujC.png"
+          alt="Nocturnal Logo"
+          draggable="false"
+        />
+      </div>
+    </div>
+
+    <!-- TITLE SCREEN -->
+    <div id="titleScreen" class="screen">
+      <div class="screenBg"></div>
+      <div class="screenContent">
+        <img
+          id="titleImage"
+          src="https://i.imgur.com/tvgphjn.png"
+          alt="Infinite Shells Title"
+          draggable="false"
+        />
+        <div class="pressStart">PRESS ANYWHERE TO START</div>
+      </div>
+    </div>
+
+    <!-- LIFELINES UI (top-right) -->
+    <div id="lifelines" aria-label="Lifelines">
+      <button class="life" id="lifeSlow" type="button">
+        <span class="icon"></span>
+        <span class="dots" id="dotsSlow"></span>
+      </button>
+
+      <!-- Shield display-only -->
+      <div class="life static" id="lifeShield" aria-label="Shield (always on)">
+        <span class="icon"></span>
+        <span class="dots" id="dotsShield"></span>
+      </div>
+
+      <button class="life" id="lifeFifty" type="button">
+        <span class="icon"></span>
+        <span class="dots" id="dotsFifty"></span>
+      </button>
+
+      <button class="life" id="lifeReveal" type="button">
+        <span class="icon"></span>
+        <span class="dots" id="dotsReveal"></span>
+      </button>
+    </div>
+
+    <!-- GAME -->
+    <div id="overlay"></div>
+    <div id="recordText">NEW RECORD!</div>
+    <div id="shellLayer"></div>
+    <div id="pearl"></div>
+
+    <!-- GAME OVER MENU (NEW) -->
+    <div id="gameOverMenu" aria-hidden="true">
+      <div class="gomBackdrop"></div>
+      <div class="gomPanel" role="dialog" aria-label="Game Over Menu">
+        <div class="gomTitle">GAME OVER</div>
+        <div class="gomSub">Retry or return to the start menu.</div>
+        <div class="gomBtns">
+          <button id="btnRetry" type="button">Retry</button>
+          <button id="btnTitle" type="button">Start Menu</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
