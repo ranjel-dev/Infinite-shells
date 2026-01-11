@@ -2,13 +2,23 @@
   --shellSize: clamp(78px, 11vw, 120px);
   --pearlSize: clamp(44px, 6vw, 64px);
 
-  --lifelineSize: clamp(64px, 8vw, 88px);
-  --lifelineGap: 14px;
+  /* Lifelines */
+  --lifeSize: clamp(64px, 9vw, 88px);
+  --lifeRadius: 18px;
 
-  /* Pearl should sit UNDER the shell but still be fully covered while shell is down.
-     The pearl is revealed by lifting the shell, not by moving pearl down. */
-  --pearlYOffset: 10px; /* tweakable if needed */
+  /* Shell hitbox */
+  --hitW: calc(var(--shellSize) * 1.25);
+  --hitH: calc(var(--shellSize) * 1.55);
+
+  /* Neutral pip color that pops across themes */
+  --pipOn: #ffd54a;
+  --pipOff: rgba(255,255,255,0.12);
+
+  /* NEW: how far the shell lifts to fully reveal pearl */
+  --revealLift: calc(var(--pearlSize) + 28px);
 }
+
+*{ box-sizing:border-box; }
 
 body{
   margin:0;
@@ -49,7 +59,7 @@ body{
   position:relative;
   overflow:hidden;
 
-  /* 🔒 LOCKED BACKGROUND */
+  /* LOCKED BACKGROUND */
   background:#0F2F1F;
 
   user-select:none;
@@ -73,20 +83,18 @@ body{
 }
 
 /* =========================
-   SCREENS (OPAQUE)
+   SCREENS
 ========================= */
 .screen{
   position:absolute;
   inset:0;
   display:none;
-  z-index:1000;
+  z-index:1200;
 }
-
 .screenBg{
   position:absolute;
   inset:0;
 }
-
 .screenContent{
   position:absolute;
   inset:0;
@@ -96,13 +104,12 @@ body{
   opacity:0;
   transition:opacity 550ms ease;
 }
-
 .screen.show{ display:block; }
 .screen.show .screenContent{ opacity:1; }
 .screen.fadeOut .screenContent{ opacity:0; }
 
-/* ---------- LOADING ---------- */
-#loadingScreen{ z-index:1100; }
+/* LOADING */
+#loadingScreen{ z-index:1300; }
 #loadingScreen .screenBg{ background:#ffffff; }
 
 #loadingLogo{
@@ -113,8 +120,8 @@ body{
   user-select:none;
 }
 
-/* ---------- TITLE ---------- */
-#titleScreen{ z-index:1050; }
+/* TITLE */
+#titleScreen{ z-index:1250; }
 #titleScreen .screenBg{ background:#0b0b10; }
 
 #titleImage{
@@ -138,45 +145,172 @@ body{
   animation:ctaFade 2s ease-in-out infinite;
   pointer-events:none;
 }
-
 @keyframes ctaFade{
   0%{opacity:.35}
   50%{opacity:.85}
   100%{opacity:.35}
 }
 
-/* ---------- MENU ---------- */
-#menuScreen{ z-index:1040; }
-#menuScreen .screenBg{ background:#0b0b10; }
-
-.menuContent{
-  padding:28px;
+/* =========================
+   MAIN MENU
+========================= */
+#menuScreen{ z-index:1240; }
+#menuScreen .screenBg{
+  background: radial-gradient(1200px 600px at 50% 25%, rgba(255,255,255,0.06), rgba(0,0,0,0.55));
 }
 
-.menuPanel{
-  width:min(520px, 88%);
-  display:grid;
-  gap:14px;
+.menuWrap{
+  width:min(520px, 86%);
+  border-radius:20px;
+  border:1px solid rgba(255,255,255,0.10);
+  background:rgba(10,12,16,0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding:22px 18px 18px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.45);
+  text-align:center;
+}
+
+.menuTitle{
+  font-weight:900;
+  letter-spacing:0.22em;
+  font-size:clamp(18px, 3vw, 26px);
+  margin-bottom:16px;
+  opacity:0.95;
+}
+
+.menuButtons{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
 }
 
 .menuBtn{
-  padding:16px 18px;
-  border-radius:14px;
-  border:1px solid #2c2c3a;
-  background:#151522;
+  width:100%;
+  padding:14px 14px;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,0.12);
+  background:rgba(255,255,255,0.06);
   color:#e8e8ef;
-  font-size:18px;
-  letter-spacing:.02em;
   cursor:pointer;
+  font-weight:700;
+  letter-spacing:0.04em;
 }
 
-.menuBtn:active{
-  transform:translateY(1px);
+.menuBtn.primary{
+  background:rgba(255,213,74,0.12);
+  border-color:rgba(255,213,74,0.25);
 }
 
 .menuBtn.disabled{
-  opacity:.45;
-  cursor:not-allowed;
+  opacity:0.45;
+  cursor:default;
+}
+
+.menuNote{
+  margin-top:12px;
+  opacity:0.72;
+  font-size:13px;
+}
+
+/* =========================
+   LIFELINES (TOP RIGHT)
+========================= */
+#lifelines{
+  position:absolute;
+  top:18px;
+  right:18px;
+  display:flex;
+  gap:14px;
+  z-index:900;
+}
+
+.life{
+  flex:0 0 var(--lifeSize);
+  width:var(--lifeSize);
+  height:var(--lifeSize);
+
+  border-radius:18px;
+  border:1px solid rgba(255,255,255,0.10);
+  background:rgba(8,12,14,0.55);
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.04),
+    0 10px 18px rgba(0,0,0,0.25);
+
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+
+  padding:10px;
+  gap:10px;
+
+  margin:0;
+  font:inherit;
+  line-height:1;
+  -webkit-appearance:none;
+  appearance:none;
+
+  cursor:pointer;
+}
+
+.life.static{ cursor:default; }
+
+.life.locked{
+  opacity:0.45;
+  filter:saturate(0.85);
+}
+.life.disabled{
+  opacity:0.55;
+  cursor:default;
+}
+.life:active{ transform:scale(0.985); }
+
+.life .ico{
+  width:52%;
+  height:52%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto;
+}
+
+.life svg{
+  width:100%;
+  height:100%;
+  fill:none;
+  stroke:rgba(255,255,255,0.85);
+  stroke-width:2;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+
+.life.locked svg{ stroke:rgba(255,255,255,0.35); }
+
+.pips{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto;
+}
+
+.pip{
+  width:10px;
+  height:10px;
+  border-radius:999px;
+  background:var(--pipOff);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.22) inset;
+}
+.pip.on{
+  background:var(--pipOn);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.18) inset,
+    0 0 10px rgba(255,213,74,0.22);
 }
 
 /* =========================
@@ -185,64 +319,70 @@ body{
 #shellLayer{
   position:absolute;
   inset:0;
-  z-index:20; /* shells ABOVE pearl */
+  z-index:10; /* shells ABOVE pearl */
 }
 
-/* Shell visual (art) */
-.shell{
+/* wrapper holds BOTH hitbox and visual */
+.shellWrap{
   position:absolute;
+  bottom:34%;
+  transform:translateX(-50%);
+  width:var(--hitW);
+  height:var(--hitH);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:left 260ms ease, transform 260ms ease, opacity 160ms ease;
+  filter: drop-shadow(0 10px 12px rgba(0,0,0,.35));
+}
+
+/* tall vertical hit area */
+.shellHit{
+  position:absolute;
+  inset:0;
+  border-radius:20px;
+  background:transparent;
+  pointer-events:auto;
+}
+
+/* the actual shell art stays normal size */
+.shell{
   width:var(--shellSize);
   height:var(--shellSize);
-
-  /* move shells up a bit vs earlier: */
-  bottom:34%;
-
-  transform:translateX(-50%);
   border-radius:18px;
   background-size:contain;
   background-repeat:no-repeat;
   background-position:center;
-
-  transition:left 260ms ease, transform 260ms ease;
-  filter: drop-shadow(0 10px 12px rgba(0,0,0,.35));
+  pointer-events:none; /* hitbox handles presses */
 }
 
-/* Lift used for reveals */
-.shell.lift{
+/* used for shuffles */
+.shellWrap.lift{
   transform:translateX(-50%) translateY(-22px) scale(1.03);
 }
 
-/* HITBOX: larger invisible tap target */
-.shellHit{
-  position:absolute;
-  width:var(--shellSize);
-  height:var(--shellSize);
-
-  /* Match the shell vertical position */
-  bottom:34%;
-
-  transform:translateX(-50%);
-  border-radius:18px;
-  background:transparent;
-  z-index:25; /* above shell art so it always catches */
+/* NEW: used only when revealing pearl (higher lift) */
+.shellWrap.revealLift{
+  transform:translateX(-50%) translateY(calc(-1 * var(--revealLift))) scale(1.03);
 }
 
+.shellWrap.dim{ opacity:0.25; }
+.shellWrap.hint{ opacity:1; }
+
 /* =========================
-   PEARL (always behind shells)
+   PEARL
 ========================= */
 #pearl{
   position:absolute;
   width:var(--pearlSize);
   height:var(--pearlSize);
-
-  /* Align with shells; pearl should be covered while shell is down */
-  bottom:calc(34% + var(--pearlYOffset));
+  bottom:calc(34% + 18px);
 
   transform:translateX(-50%);
   opacity:0;
   transition:opacity 140ms ease;
 
-  z-index:10; /* BELOW shells so it never looks "on top" */
+  z-index:5; /* ✅ pearl BEHIND shells now */
 
   background-size:contain;
   background-repeat:no-repeat;
@@ -254,35 +394,6 @@ body{
     drop-shadow(0 10px 14px rgba(0,0,0,0.35));
 }
 
-/* Optional pulse (not active unless JS adds class) */
-#pearl.revealPulse{
-  animation: pearlPulse 260ms ease-out 1;
-}
-
-@keyframes pearlPulse{
-  0%{
-    transform:translateX(-50%) scale(0.98);
-    filter:
-      drop-shadow(0 0 6px rgba(180,255,220,0.18))
-      drop-shadow(0 0 16px rgba(90,255,190,0.10))
-      drop-shadow(0 10px 14px rgba(0,0,0,0.35));
-  }
-  60%{
-    transform:translateX(-50%) scale(1.06);
-    filter:
-      drop-shadow(0 0 14px rgba(180,255,220,0.28))
-      drop-shadow(0 0 30px rgba(90,255,190,0.18))
-      drop-shadow(0 10px 14px rgba(0,0,0,0.35));
-  }
-  100%{
-    transform:translateX(-50%) scale(1);
-    filter:
-      drop-shadow(0 0 10px rgba(180,255,220,0.22))
-      drop-shadow(0 0 22px rgba(90,255,190,0.14))
-      drop-shadow(0 10px 14px rgba(0,0,0,0.35));
-  }
-}
-
 /* =========================
    OVERLAY / RECORD
 ========================= */
@@ -292,7 +403,6 @@ body{
   background:rgba(255,40,60,.22);
   opacity:0;
   transition:opacity 160ms ease;
-
   pointer-events:none;
   z-index:50;
 }
@@ -311,3 +421,68 @@ body{
   z-index:60;
 }
 #recordText.show{ opacity:1; }
+
+/* =========================
+   RETRY MODAL
+========================= */
+#retryModal{
+  position:absolute;
+  inset:0;
+  display:none;
+  z-index:1500;
+}
+#retryModal.show{ display:block; }
+
+#retryModal .backdrop{
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,0.55);
+}
+
+#retryModal .panel{
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%, -50%);
+  width:min(420px, 86%);
+  border-radius:18px;
+  border:1px solid rgba(255,255,255,0.12);
+  background:rgba(12,14,20,0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+  padding:18px 18px 16px;
+}
+
+#retryModal .title{
+  font-weight:800;
+  font-size:18px;
+  letter-spacing:0.02em;
+  margin-bottom:6px;
+}
+
+#retryModal .desc{
+  opacity:0.85;
+  line-height:1.35;
+  margin-bottom:14px;
+}
+
+#retryModal .actions{
+  display:flex;
+  gap:10px;
+  justify-content:flex-end;
+}
+
+.modalBtn{
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,0.12);
+  background:rgba(255,255,255,0.06);
+  color:#e8e8ef;
+  cursor:pointer;
+}
+
+.modalBtn.primary{
+  background:rgba(255,213,74,0.14);
+  border-color:rgba(255,213,74,0.28);
+}
