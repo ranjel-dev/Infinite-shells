@@ -6,6 +6,15 @@ const LOADING_HOLD_MS = 5200;
 const FADE_MS = 550;
 const POST_TITLE_LOCK_MS = 3000;
 
+/* resolve gate */
+const RESOLVE_MIN_SHOW_MS = 650;
+const RESOLVE_EXTRA_MS = 250;
+
+/* lifelines */
+const MAX_CHARGES = 3;
+const SLOW_FACTOR = 2.35;
+const REVEAL_FLASH_MS = 420;
+
 /* =========================
    ASSETS
 ========================= */
@@ -45,14 +54,22 @@ const btnReset      = document.getElementById("btnReset");
 
 const loadingScreen = document.getElementById("loadingScreen");
 const titleScreen   = document.getElementById("titleScreen");
-const menuScreen    = document.getElementById("menuScreen");
+const titleCta      = document.querySelector(".pressStart");
 
+const menuScreen    = document.getElementById("menuScreen");
 const btnClassic    = document.getElementById("btnClassic");
 const btnHardcore   = document.getElementById("btnHardcore");
-const btnLeaders    = document.getElementById("btnLeaders");
+const btnLeaderboards = document.getElementById("btnLeaderboards");
 const btnSettings   = document.getElementById("btnSettings");
 
-const titleCta      = document.querySelector(".pressStart");
+const lifeSlow   = document.getElementById("lifeSlow");
+const lifeShield = document.getElementById("lifeShield");
+const lifeFifty  = document.getElementById("lifeFifty");
+const lifeReveal = document.getElementById("lifeReveal");
+
+const retryModal = document.getElementById("retryModal");
+const btnRetry   = document.getElementById("btnRetry");
+const btnToTitle = document.getElementById("btnToTitle");
 
 /* =========================
    HELPERS
@@ -78,30 +95,22 @@ function hideGameUnderScreens(shouldHide){
 
 function setMessage(t){ msg.textContent = t; }
 function refreshHUD(){ scoreLine.textContent = `Score: ${score}`; }
-
-function showPearl(){
-  pearl.style.opacity = "1";
-  pearl.classList.add("revealPulse");
-  setTimeout(() => pearl.classList.remove("revealPulse"), 280);
-}
+function showPearl(){ pearl.style.opacity = "1"; }
 function hidePearl(){ pearl.style.opacity = "0"; }
 
-function liftShell(shellId){
-  if (!shells[shellId]) return;
-  shells[shellId].classList.add("lift");
+function modalShow(){
+  retryModal.classList.add("show");
+  retryModal.setAttribute("aria-hidden", "false");
 }
-function dropShell(shellId){
-  if (!shells[shellId]) return;
-  shells[shellId].classList.remove("lift");
-}
-function dropAllShells(){
-  shells.forEach(s => s.classList.remove("lift"));
+function modalHide(){
+  retryModal.classList.remove("show");
+  retryModal.setAttribute("aria-hidden", "true");
 }
 
 /* =========================
    STATE
 ========================= */
-let phase = "loading"; // loading -> title -> menu -> lockout -> ready -> shuffling -> guessing
+let phase = "loading"; // loading -> title -> menu -> lockout -> ready -> shuffling -> guessing -> resolving -> gameover
 let lockTimer = null;
 
 let score = 0;
@@ -109,7 +118,7 @@ let busy = false;
 let canGuess = false;
 
 /* ladder */
-let stageShells = 3;   // 3..7
+let stageShells = 3;
 let stageWins = 0;
 let totalWinsThisRun = 0;
 let difficultyTier = 0;
@@ -117,13 +126,24 @@ let difficultyTier = 0;
 /* theme */
 let themeIndex = 0;
 
-/* shells layout */
+/* shells */
 let shellCount = 3;
-let shells = [];     // visual shell divs
-let shellHits = [];  // hitbox divs
-let slots = [];      // slots[shellId] = slotIndex
-let slotPerc = [];   // percents for each slot index
+let shellWraps = [];      // interactive wrappers
+let shellVisuals = [];    // inner art divs
+let slots = [];
+let slotPerc = [];
 let pearlUnderShellId = 0;
+
+/* lifelines */
+const lifelines = {
+  slow:   { unlocked:true,  charges:1, pending:false },
+  shield: { unlocked:true,  charges:1 },
+  fifty:  { unlocked:false, charges:0, active:false },
+  reveal: { unlocked:false, charges:0 }
+};
+
+/* reset counter for unlock schedule */
+let resetCount = 0;
 
 /* =========================
    LAYOUT
@@ -139,10 +159,7 @@ function computeSlotPercents(n){
   const step = span / (n - 1);
   return Array.from({ length:n }, (_, i) => leftMargin + i * step);
 }
-
-function recomputeSlots(){
-  slotPerc = computeSlotPercents(shellCount);
-}
+function recomputeSlots(){ slotPerc = computeSlotPercents(shellCount); }
 
 /* =========================
    LADDER: 2-2-2-1-1
@@ -156,6 +173,28 @@ function winsNeededForStage(s){
   return 2;
 }
 
+function awardResetCharges(){
+  resetCount++;
+  for (const k of ["slow","shield","fifty","reveal"]){
+    const L = lifelines[k];
+    if (!L.unlocked) continue;
+    L.charges = Math.min(MAX_CHARGES, L.charges + 1);
+  }
+  syncLifelineUI();
+}
+
+function maybeUnlockOnReset(){
+  if (resetCount === 1 && !lifelines.fifty.unlocked){
+    lifelines.fifty.unlocked = true;
+    lifelines.fifty.charges = Math.min(MAX_CHARGES, Math.max(lifelines.fifty.charges, 1));
+  }
+  if (resetCount === 5 && !lifelines.reveal.unlocked){
+    lifelines.reveal.unlocked = true;
+    lifelines.reveal.charges = Math.min(MAX_CHARGES, Math.max(lifelines.reveal.charges, 1));
+  }
+  syncLifelineUI();
+}
+
 function advanceStageIfReady(){
   const need = winsNeededForStage(stageShells);
   if (stageWins < need) return { changed:false, didReset:false };
@@ -166,6 +205,10 @@ function advanceStageIfReady(){
     stageShells = 3;
     themeIndex = (themeIndex + 1) % THEMES.length;
     difficultyTier++;
+
+    awardResetCharges();
+    maybeUnlockOnReset();
+
     return { changed:true, didReset:true };
   } else {
     stageShells++;
@@ -174,24 +217,23 @@ function advanceStageIfReady(){
 }
 
 /* =========================
-   DIFFICULTY
+   DIFFICULTY (SLOWER START)
 ========================= */
 function difficultyFromProgress(totalWins, shellsNow, tier){
   const t = Math.min(1, totalWins / 40);
   const ease = t * t * (3 - 2 * t);
 
-  const baseSwaps = 6 + (shellsNow - 3) * 2;
+  const baseSwaps = 4 + (shellsNow - 3) * 2;
   const tierBumpSwaps = Math.min(8, tier * 1.0);
-
-  const swaps = Math.round(baseSwaps + ease * 8 + tierBumpSwaps);
+  const swaps = Math.round(baseSwaps + ease * 7 + tierBumpSwaps);
 
   let duration = Math.round(
-    270 - ease * 120 - (shellsNow - 3) * 12 - tier * 8
+    330 - ease * 140 - (shellsNow - 3) * 10 - tier * 7
   );
-  duration = Math.max(95, duration);
+  duration = Math.max(110, duration);
 
-  const pauseChance = Math.min(0.30, 0.10 + ease * 0.10);
-  const pauseExtraMax = Math.round(70 + ease * 140);
+  const pauseChance = Math.min(0.28, 0.10 + ease * 0.10);
+  const pauseExtraMax = Math.round(80 + ease * 170);
 
   return { swaps, duration, pauseChance, pauseExtraMax };
 }
@@ -199,49 +241,106 @@ function difficultyFromProgress(totalWins, shellsNow, tier){
 /* =========================
    ART APPLY
 ========================= */
+function themeToStroke(key){
+  const map = {
+    ivory:  "rgba(245,245,245,0.92)",
+    coral:  "rgba(255,190,180,0.92)",
+    green:  "rgba(170,255,210,0.92)",
+    gray:   "rgba(215,215,225,0.82)",
+    purple: "rgba(210,190,255,0.92)",
+    blue:   "rgba(180,220,255,0.92)",
+    red:    "rgba(255,175,175,0.90)"
+  };
+  return map[key] || "rgba(255,255,255,0.85)";
+}
+
+function setLifelineStroke(color){
+  const svgs = document.querySelectorAll("#lifelines svg");
+  svgs.forEach(svg => svg.style.stroke = color);
+
+  if (lifeFifty && !lifelines.fifty.unlocked){
+    lifeFifty.querySelector("svg").style.stroke = "rgba(255,255,255,0.35)";
+  }
+  if (lifeReveal && !lifelines.reveal.unlocked){
+    lifeReveal.querySelector("svg").style.stroke = "rgba(255,255,255,0.35)";
+  }
+}
+
 function applyArt(){
   const th = THEMES[themeIndex % THEMES.length];
   const shellURL = ASSETS.shells[th.key];
-  shells.forEach(s => s.style.backgroundImage = `url(${shellURL})`);
+
+  shellVisuals.forEach(v => v.style.backgroundImage = `url(${shellURL})`);
   pearl.style.backgroundImage = `url(${ASSETS.ball})`;
+
+  setLifelineStroke(themeToStroke(th.key));
+  syncLifelineUI();
 }
 
 /* =========================
-   BUILD SHELLS + HITBOXES
+   LIFELINE UI
+========================= */
+function setPips(el, n){
+  if (!el) return;
+  const pips = el.querySelectorAll(".pip");
+  pips.forEach((p, i) => p.classList.toggle("on", i < n));
+}
+
+function syncLifelineUI(){
+  if (lifeSlow){
+    lifeSlow.classList.toggle("disabled", lifelines.slow.charges <= 0);
+    setPips(lifeSlow, lifelines.slow.charges);
+  }
+  if (lifeShield){
+    setPips(lifeShield, lifelines.shield.charges);
+  }
+  if (lifeFifty){
+    lifeFifty.classList.toggle("locked", !lifelines.fifty.unlocked);
+    lifeFifty.classList.toggle("disabled", !lifelines.fifty.unlocked || lifelines.fifty.charges <= 0);
+    setPips(lifeFifty, lifelines.fifty.charges);
+  }
+  if (lifeReveal){
+    lifeReveal.classList.toggle("locked", !lifelines.reveal.unlocked);
+    lifeReveal.classList.toggle("disabled", !lifelines.reveal.unlocked || lifelines.reveal.charges <= 0);
+    setPips(lifeReveal, lifelines.reveal.charges);
+  }
+}
+
+/* =========================
+   BUILD SHELLS (WITH BIG HITBOX)
 ========================= */
 function buildShells(n){
   shellLayer.innerHTML = "";
-  shells = [];
-  shellHits = [];
+  shellWraps = [];
+  shellVisuals = [];
   slots = [];
 
   shellCount = n;
   recomputeSlots();
 
   for (let shellId = 0; shellId < shellCount; shellId++){
+    const wrap = document.createElement("div");
+    wrap.className = "shellWrap";
+    wrap.style.left = `${slotPerc[shellId]}%`;
     slots[shellId] = shellId;
 
-    // Visual shell
-    const s = document.createElement("div");
-    s.className = "shell";
-    s.style.left = `${slotPerc[slots[shellId]]}%`;
-
-    // Hitbox (same size as shell, easier to tap)
-    const h = document.createElement("div");
-    h.className = "shellHit";
-    h.style.left = `${slotPerc[slots[shellId]]}%`;
-
-    h.addEventListener("pointerdown", (e) => {
+    const hit = document.createElement("div");
+    hit.className = "shellHit";
+    hit.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       e.stopPropagation();
       handleGuess(shellId);
     }, { passive:false });
 
-    shells.push(s);
-    shellHits.push(h);
+    const visual = document.createElement("div");
+    visual.className = "shell";
 
-    shellLayer.appendChild(s);
-    shellLayer.appendChild(h);
+    wrap.appendChild(hit);
+    wrap.appendChild(visual);
+
+    shellWraps.push(wrap);
+    shellVisuals.push(visual);
+    shellLayer.appendChild(wrap);
   }
 
   applyArt();
@@ -256,6 +355,30 @@ function placePearlUnderShell(shellId){
 }
 
 /* =========================
+   PEARL REVEAL (ONLY CHANGE)
+   - Pearl stays behind shells.
+   - Lift the correct shell high enough to reveal the full pearl.
+========================= */
+function clearRevealLifts(){
+  shellWraps.forEach(w => w.classList.remove("revealLift"));
+}
+
+async function revealPearlByLiftingShell(shellId, ms){
+  clearRevealLifts();
+  if (shellWraps[shellId]) shellWraps[shellId].classList.add("revealLift");
+
+  placePearlUnderShell(shellId);
+  showPearl();
+
+  await sleep(ms);
+
+  hidePearl();
+  await sleep(90);
+
+  if (shellWraps[shellId]) shellWraps[shellId].classList.remove("revealLift");
+}
+
+/* =========================
    ROUND FLOW
 ========================= */
 function pickPearlForRound(){
@@ -263,54 +386,57 @@ function pickPearlForRound(){
   placePearlUnderShell(pearlUnderShellId);
 }
 
-async function revealPearlByLifting(shellId, holdMs){
-  // Pearl should never look like it’s “under” the shell outside its silhouette:
-  // We show the pearl, but the shell is above it. Lifting creates the visible gap.
-  liftShell(shellId);
-  showPearl();
-  await sleep(holdMs);
-  hidePearl();
-  dropShell(shellId);
-}
-
 async function animateSwap(a, b, duration){
-  shells[a].classList.add("lift");
-  shells[b].classList.add("lift");
+  shellWraps[a].classList.add("lift");
+  shellWraps[b].classList.add("lift");
 
   const tmp = slots[a];
   slots[a] = slots[b];
   slots[b] = tmp;
 
-  shells[a].style.transitionDuration = `${duration}ms`;
-  shells[b].style.transitionDuration = `${duration}ms`;
-  shellHits[a].style.transitionDuration = `${duration}ms`;
-  shellHits[b].style.transitionDuration = `${duration}ms`;
+  shellWraps[a].style.transitionDuration = `${duration}ms`;
+  shellWraps[b].style.transitionDuration = `${duration}ms`;
 
-  const leftA = `${slotPerc[slots[a]]}%`;
-  const leftB = `${slotPerc[slots[b]]}%`;
-
-  shells[a].style.left = leftA;
-  shells[b].style.left = leftB;
-  shellHits[a].style.left = leftA;
-  shellHits[b].style.left = leftB;
+  shellWraps[a].style.left = `${slotPerc[slots[a]]}%`;
+  shellWraps[b].style.left = `${slotPerc[slots[b]]}%`;
 
   await sleep(Math.max(90, duration * 0.55));
-  shells[a].classList.remove("lift");
-  shells[b].classList.remove("lift");
+  shellWraps[a].classList.remove("lift");
+  shellWraps[b].classList.remove("lift");
   await sleep(Math.max(90, duration * 0.55));
 }
 
+function clearFiftyVisual(){
+  shellWraps.forEach(w => { w.classList.remove("dim"); w.classList.remove("hint"); });
+  lifelines.fifty.active = false;
+}
+
+function syncStageVisualsNow(){
+  if (shellCount !== stageShells){
+    buildShells(stageShells);
+  } else {
+    applyArt();
+    recomputeSlots();
+    shellWraps.forEach((_, shellId) => {
+      shellWraps[shellId].style.left = `${slotPerc[slots[shellId]]}%`;
+    });
+  }
+}
+
 async function shuffle(){
-  const d = difficultyFromProgress(totalWinsThisRun, shellCount, difficultyTier);
+  const d0 = difficultyFromProgress(totalWinsThisRun, shellCount, difficultyTier);
+  let d = { ...d0 };
+
+  if (lifelines.slow.pending){
+    d.duration = Math.round(d.duration * SLOW_FACTOR);
+    lifelines.slow.pending = false;
+    syncLifelineUI();
+  }
 
   busy = true;
   canGuess = false;
   phase = "shuffling";
   setMessage("Shuffling…");
-
-  // HARD RULE: pearl is hidden during motion
-  hidePearl();
-  dropAllShells();
 
   try{
     for (let k = 0; k < d.swaps; k++){
@@ -321,7 +447,7 @@ async function shuffle(){
       await animateSwap(a, b, d.duration);
 
       if (Math.random() < d.pauseChance) await sleep(rndInt(d.pauseExtraMax));
-      else await sleep(rndInt(55));
+      else await sleep(rndInt(60));
     }
   } finally {
     busy = false;
@@ -333,32 +459,72 @@ async function shuffle(){
 
 async function startRound(){
   if (busy || canGuess) return;
+  if (phase !== "ready") return;
 
-  if (shellCount !== stageShells){
-    buildShells(stageShells);
-  } else {
-    applyArt();
-    recomputeSlots();
-    shells.forEach((_, shellId) => {
-      const left = `${slotPerc[slots[shellId]]}%`;
-      shells[shellId].style.left = left;
-      shellHits[shellId].style.left = left;
-    });
-  }
+  clearFiftyVisual();
+  syncStageVisualsNow();
 
   pickPearlForRound();
 
   setMessage(`Watch the pearl… (${stageShells} shells)`);
 
-  // Reveal by lifting the correct shell (not by showing pearl “below” it)
-  await revealPearlByLifting(pearlUnderShellId, 900);
+  // ✅ ONLY CHANGE: reveal by lifting shell (pearl stays behind)
+  await revealPearlByLiftingShell(pearlUnderShellId, 900);
 
   await sleep(160);
   await shuffle();
 }
 
 /* =========================
-   GUESS
+   LIFELINES
+========================= */
+function canUseSlow(){
+  return lifelines.slow.unlocked && lifelines.slow.charges > 0 && phase === "ready" && !busy;
+}
+function useSlow(){
+  if (!canUseSlow()) return;
+  lifelines.slow.charges--;
+  lifelines.slow.pending = true;
+  setMessage("Slow armed for next round.");
+  syncLifelineUI();
+}
+
+function canUseFifty(){
+  return lifelines.fifty.unlocked && lifelines.fifty.charges > 0 && phase === "guessing" && !busy && canGuess && !lifelines.fifty.active;
+}
+function useFifty(){
+  if (!canUseFifty()) return;
+  lifelines.fifty.charges--;
+  lifelines.fifty.active = true;
+
+  const correct = pearlUnderShellId;
+  let other = rndInt(shellCount);
+  while (other === correct) other = rndInt(shellCount);
+
+  shellWraps.forEach((w, i) => {
+    w.classList.remove("dim","hint");
+    if (i === correct || i === other) w.classList.add("hint");
+    else w.classList.add("dim");
+  });
+
+  setMessage("50/50 active.");
+  syncLifelineUI();
+}
+
+function canUseReveal(){
+  return lifelines.reveal.unlocked && lifelines.reveal.charges > 0 && phase === "guessing" && !busy && canGuess;
+}
+async function useReveal(){
+  if (!canUseReveal()) return;
+  lifelines.reveal.charges--;
+  syncLifelineUI();
+
+  // ✅ ONLY CHANGE: reveal by lifting shell (pearl stays behind)
+  await revealPearlByLiftingShell(pearlUnderShellId, REVEAL_FLASH_MS);
+}
+
+/* =========================
+   GUESS (RESOLVE GATE)
 ========================= */
 async function handleGuess(shellId){
   if (phase !== "guessing") return;
@@ -366,16 +532,13 @@ async function handleGuess(shellId){
 
   canGuess = false;
   busy = true;
+  phase = "resolving";
 
-  // Always ensure pearl is positioned under the correct shell
-  placePearlUnderShell(pearlUnderShellId);
-
+  // ✅ ONLY CHANGE: reveal by lifting the correct shell
   const correct = (shellId === pearlUnderShellId);
+  await revealPearlByLiftingShell(pearlUnderShellId, RESOLVE_MIN_SHOW_MS);
 
   if (correct){
-    // Lift the chosen shell to reveal
-    await revealPearlByLifting(shellId, 650);
-
     score += 10;
     refreshHUD();
 
@@ -385,50 +548,76 @@ async function handleGuess(shellId){
     const result = advanceStageIfReady();
 
     if (result.didReset){
-      setMessage("Stage cleared! Reset to 3 (harder).");
+      setMessage("Stage cleared! Reset to 3.");
     } else if (result.changed){
       setMessage(`Level up! Now ${stageShells} shells.`);
     } else {
       setMessage("Correct!");
     }
 
-    await sleep(450);
+    // apply visuals immediately so nothing pops after tap
+    syncStageVisualsNow();
+
+    await sleep(RESOLVE_EXTRA_MS);
 
     busy = false;
     phase = "ready";
     setMessage("Tap anywhere for next round");
-  } else {
-    // Wrong: lift their chosen shell briefly (no pearl), then reveal correct
-    liftShell(shellId);
-    await sleep(240);
-    dropShell(shellId);
-
-    // Reveal correct shell with pearl
-    await revealPearlByLifting(pearlUnderShellId, 650);
-
-    setMessage("Wrong — Game Over");
-    overlay.classList.add("flash");
-    await sleep(520);
-    overlay.classList.remove("flash");
-    await sleep(250);
-    resetGame();
+    clearFiftyVisual();
+    return;
   }
+
+  // wrong
+  if (lifelines.shield.unlocked && lifelines.shield.charges > 0){
+    lifelines.shield.charges--;
+    syncLifelineUI();
+
+    setMessage("Wrong — Shield saved you.");
+    overlay.classList.add("flash");
+    await sleep(220);
+    overlay.classList.remove("flash");
+
+    await sleep(RESOLVE_EXTRA_MS);
+
+    busy = false;
+    phase = "ready";
+    setMessage("Tap anywhere for next round");
+    clearFiftyVisual();
+    return;
+  }
+
+  setMessage("Wrong — Game Over");
+  overlay.classList.add("flash");
+  await sleep(380);
+  overlay.classList.remove("flash");
+
+  busy = false;
+  canGuess = false;
+  phase = "gameover";
+  modalShow();
 }
 
 /* =========================
-   INPUT FLOW
+   GLOBAL TAP
 ========================= */
-async function onGlobalTap(){
-  if (phase === "loading") return;
-  if (phase === "shuffling" || phase === "guessing") return;
+function onGlobalTap(){
+  if (busy) return;
 
+  if (phase === "loading") return;
+  if (phase === "shuffling" || phase === "guessing" || phase === "resolving" || phase === "gameover") return;
+
+  // Title tap goes to MENU now
   if (phase === "title"){
-    await hideScreen(titleScreen);
+    hideScreen(titleScreen);
     showScreen(menuScreen);
+    hideGameUnderScreens(true);
     phase = "menu";
     setMessage("");
     return;
   }
+
+  // In menu, taps do nothing (must press Classic button)
+  if (phase === "menu") return;
 
   if (phase === "lockout") return;
 
@@ -441,12 +630,9 @@ document.addEventListener("pointerdown", onGlobalTap, { passive:true });
 /* =========================
    MENU BUTTONS
 ========================= */
-btnClassic.addEventListener("click", async (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-
-  // Transition from menu into game
-  await hideScreen(menuScreen);
+function enterClassicMode(){
+  // show game under UI and enter lockout -> ready
+  hideScreen(menuScreen);
   hideGameUnderScreens(false);
 
   phase = "lockout";
@@ -458,12 +644,20 @@ btnClassic.addEventListener("click", async (e) => {
     phase = "ready";
     setMessage("Tap anywhere to start");
   }, POST_TITLE_LOCK_MS);
+}
+
+btnClassic.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (phase !== "menu") return;
+  enterClassicMode();
 });
+
+// other buttons intentionally inactive for now (disabled in HTML)
 
 /* =========================
    RESET / BOOT
 ========================= */
-function resetGame(){
+function resetRunState(){
   busy = false;
   canGuess = false;
 
@@ -476,36 +670,36 @@ function resetGame(){
   themeIndex = 0;
   difficultyTier = 0;
 
-  refreshHUD();
-  hidePearl();
-  dropAllShells();
-  boot();
-}
+  resetCount = 0;
 
-btnReset.addEventListener("click", (e) => {
-  e.stopPropagation();
-  resetGame();
-});
+  lifelines.slow.unlocked = true;   lifelines.slow.charges = 1;  lifelines.slow.pending = false;
+  lifelines.shield.unlocked = true; lifelines.shield.charges = 1;
+  lifelines.fifty.unlocked = false; lifelines.fifty.charges = 0; lifelines.fifty.active = false;
+  lifelines.reveal.unlocked = false; lifelines.reveal.charges = 0;
+
+  refreshHUD();
+  syncLifelineUI();
+  clearFiftyVisual();
+  hidePearl();
+  clearRevealLifts();
+}
 
 async function boot(){
   if (lockTimer) clearTimeout(lockTimer);
   lockTimer = null;
 
+  modalHide();
+
   if (titleCta) titleCta.style.display = SHOW_TITLE_CTA_OVERLAY ? "block" : "none";
 
-  // Build game under screens but keep hidden until Classic starts
+  // build game under screens but keep hidden until Classic
   buildShells(3);
   pearlUnderShellId = rndInt(shellCount);
   placePearlUnderShell(pearlUnderShellId);
   hidePearl();
-  dropAllShells();
+  clearRevealLifts();
 
-  // Hide game until Classic mode
   hideGameUnderScreens(true);
-
-  // Hide menu initially
-  menuScreen.classList.remove("show", "fadeOut");
-
   setMessage("");
   phase = "loading";
 
@@ -517,7 +711,61 @@ async function boot(){
   showScreen(titleScreen);
   await sleep(FADE_MS);
 
+  // ensure menu is hidden at boot
+  menuScreen.classList.remove("show");
+  menuScreen.classList.remove("fadeOut");
+
   phase = "title";
 }
 
+function fullResetToTitle(){
+  resetRunState();
+  hideGameUnderScreens(true);
+  setMessage("");
+  phase = "title";
+  showScreen(titleScreen);
+
+  // hide menu if it was up
+  menuScreen.classList.remove("show");
+  menuScreen.classList.remove("fadeOut");
+}
+
+btnReset.addEventListener("click", (e) => {
+  e.stopPropagation();
+  modalHide();
+  resetRunState();
+  boot();
+});
+
+/* =========================
+   RETRY MODAL
+========================= */
+btnRetry.addEventListener("click", (e) => {
+  e.stopPropagation();
+  modalHide();
+  resetRunState();
+  hideGameUnderScreens(false);
+  phase = "ready";
+  setMessage("Tap anywhere to start");
+  syncStageVisualsNow();
+});
+
+btnToTitle.addEventListener("click", (e) => {
+  e.stopPropagation();
+  modalHide();
+  fullResetToTitle();
+});
+
+/* =========================
+   LIFELINE EVENTS
+========================= */
+lifeSlow.addEventListener("click", (e) => { e.stopPropagation(); useSlow(); });
+lifeFifty.addEventListener("click", (e) => { e.stopPropagation(); useFifty(); });
+lifeReveal.addEventListener("click", async (e) => { e.stopPropagation(); await useReveal(); });
+
+/* =========================
+   START
+========================= */
+resetRunState();
+syncStageVisualsNow();
 boot();
